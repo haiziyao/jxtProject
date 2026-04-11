@@ -1,0 +1,83 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mysql"
+  url      = env("DATABASE_URL")
+}
+
+model Tag {
+  id          Int             @id @default(autoincrement())
+  name        String          @db.VarChar(50)
+  color       String          @db.VarChar(20)
+  createdAt   DateTime        @default(now()) @map("created_at")
+  experiments ExperimentTag[]
+
+  @@map("tags")
+}
+
+model ProjectSection {
+  id        Int      @id @default(autoincrement())
+  title     String   @db.VarChar(100)
+  content   String   @db.LongText
+  sortOrder Int      @default(0) @map("sort_order")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@map("project_sections")
+}
+
+model ProjectAttachment {
+  id         Int      @id @default(autoincrement())
+  name       String   @db.VarChar(200)
+  fileUrl    String   @db.VarChar(500) @map("file_url")
+  fileSize   BigInt?  @map("file_size")
+  uploadedAt DateTime @default(now()) @map("uploaded_at")
+
+  @@map("project_attachments")
+}
+
+model Experiment {
+  id        Int               @id @default(autoincrement())
+  title     String            @db.VarChar(200)
+  recorder  String            @db.VarChar(50)
+  expDate   DateTime          @map("exp_date") @db.Date
+  summary   String            @db.Text
+  createdAt DateTime          @default(now()) @map("created_at")
+  updatedAt DateTime          @updatedAt @map("updated_at")
+  images    ExperimentImage[]
+  tags      ExperimentTag[]
+  notes     ExperimentNote[]
+
+  @@map("experiments")
+}
+
+model ExperimentImage {
+  id           Int        @id @default(autoincrement())
+  experimentId Int        @map("experiment_id")
+  imageUrl     String     @db.VarChar(500) @map("image_url")
+  sortOrder    Int        @default(0) @map("sort_order")
+  experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+
+  @@map("experiment_images")
+}
+
+model ExperimentTag {
+  experimentId Int        @map("experiment_id")
+  tagId        Int        @map("tag_id")
+  experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+  tag          Tag        @relation(fields: [tagId], references: [id], onDelete: Cascade)
+
+  @@id([experimentId, tagId])
+  @@map("experiment_tags")
+}
+
+model ExperimentNote {
+  id           Int        @id @default(autoincrement())
+  experimentId Int        @map("experiment_id")
+  content      String     @db.LongText
+  createdAt    DateTime   @default(now()) @map("created_at")
+  experiment   Experiment @relation(fields: [experimentId], references: [id], onDelete: Cascade)
+
+  @@map("experiment_notes")
+}
