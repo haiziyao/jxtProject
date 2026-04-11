@@ -3,8 +3,9 @@ import { COOKIE_MAX_AGE, COOKIE_NAME, signToken } from "@/lib/auth";
 
 export async function POST(request: NextRequest) {
   const { password } = await request.json();
+  const sitePassword = process.env.SITE_PASSWORD || "lab@2026";
 
-  if (password !== process.env.SITE_PASSWORD) {
+  if (password !== sitePassword) {
     return NextResponse.json({ error: "密码错误" }, { status: 401 });
   }
 
