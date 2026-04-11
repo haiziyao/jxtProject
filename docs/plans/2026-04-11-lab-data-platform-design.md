@@ -1,119 +1,102 @@
-# 大创项目实验数据平台 — 设计文档
+﻿# 澶у垱椤圭洰瀹為獙鏁版嵁骞冲彴 鈥?璁捐鏂囨。
 
-**项目名称**：避雷器高性能高电位梯度氧化锌压敏电阻片的研发和应用  
-**文档日期**：2026-04-11  
-**使用人员**：小组成员 5 人 + 指导老师/学长 2 人，共 7 人
-
+**椤圭洰鍚嶇О**锛氶伩闆峰櫒楂樻€ц兘楂樼數浣嶆搴︽哀鍖栭攲鍘嬫晱鐢甸樆鐗囩殑鐮斿彂鍜屽簲鐢? 
+**鏂囨。鏃ユ湡**锛?026-04-11  
+**浣跨敤浜哄憳**锛氬皬缁勬垚鍛?5 浜?+ 鎸囧鑰佸笀/瀛﹂暱 2 浜猴紝鍏?7 浜?
 ---
 
-## 一、项目目标
+## 涓€銆侀」鐩洰鏍?
+鏋勫缓涓€涓唴閮ㄥ疄楠屾暟鎹鐞嗙綉绔欙紝渚涘洟闃熸垚鍛樿褰曘€佹煡鐪嬪疄楠屾暟鎹拰椤圭洰杩涘害銆傝姹傦細
 
-构建一个内部实验数据管理网站，供团队成员记录、查看实验数据和项目进度。要求：
-
-- 密码保护，防止外部访问
-- 支持手机和电脑浏览器访问
-- 核心功能：项目介绍管理 + 实验数据收集与展示
-
+- 瀵嗙爜淇濇姢锛岄槻姝㈠閮ㄨ闂?- 鏀寔鎵嬫満鍜岀數鑴戞祻瑙堝櫒璁块棶
+- 鏍稿績鍔熻兘锛氶」鐩粙缁嶇鐞?+ 瀹為獙鏁版嵁鏀堕泦涓庡睍绀?
 ---
 
-## 二、技术栈
+## 浜屻€佹妧鏈爤
 
-| 层次 | 技术 |
+| 灞傛 | 鎶€鏈?|
 |------|------|
-| 前端框架 | Next.js 14（App Router）|
-| UI 组件库 | shadcn/ui + Tailwind CSS |
-| 富文本编辑器 | Tiptap |
-| 后端 | Next.js API Routes |
-| 数据库 | MySQL 8（云服务器） |
+| 鍓嶇妗嗘灦 | Next.js 14锛圓pp Router锛墊
+| UI 缁勪欢搴?| shadcn/ui + Tailwind CSS |
+| 瀵屾枃鏈紪杈戝櫒 | Tiptap |
+| 鍚庣 | Next.js API Routes |
+| 鏁版嵁搴?| MySQL 8锛堜簯鏈嶅姟鍣級 |
 | ORM | Prisma |
-| 图片存储 | MinIO |
-| 认证 | 单一密码 + JWT Cookie（14天有效期）|
-| 部署 | Vercel（前端+API）|
+| 鍥剧墖瀛樺偍 | MinIO |
+| 璁よ瘉 | 鍗曚竴瀵嗙爜 + JWT Cookie锛?4澶╂湁鏁堟湡锛墊
+| 閮ㄧ讲 | Vercel锛堝墠绔?API锛墊
 
 ---
 
-## 三、基础设施连接信息
+## 涓夈€佸熀纭€璁炬柦杩炴帴淇℃伅
 
 ```
 MySQL:
-  host:     8.152.100.169:3306
+  host:     db-host:3306
   database: jxt
   username: jxt
   password: 123456
 
 MinIO:
-  endpoint:   http://8.152.100.169:9000
-  access-key: minioadmin
-  secret-key: minioadmin
+  endpoint:   http://minio-host:9000
+  access-key: your-minio-secret
+  secret-key: your-minio-secret
   bucket:     jxt
 
-认证:
-  SITE_PASSWORD: 存于 .env 配置文件，可随时修改
-  JWT_SECRET:    存于 .env 配置文件
-  Cookie 有效期: 14 天
-```
+璁よ瘉:
+  SITE_PASSWORD: 瀛樹簬 .env 閰嶇疆鏂囦欢锛屽彲闅忔椂淇敼
+  JWT_SECRET:    瀛樹簬 .env 閰嶇疆鏂囦欢
+  Cookie 鏈夋晥鏈? 14 澶?```
 
 ---
 
-## 四、整体架构
-
+## 鍥涖€佹暣浣撴灦鏋?
 ```
-用户浏览器（手机/电脑）
-        │ HTTPS
-        ▼
-  Vercel 托管
+鐢ㄦ埛娴忚鍣紙鎵嬫満/鐢佃剳锛?        鈹?HTTPS
+        鈻?  Vercel 鎵樼
   Next.js 14 App Router
-  ├── 前端页面（React + Tailwind + shadcn/ui）
-  └── API Routes（/api/*）
-        ├── MySQL（Prisma ORM）
-        └── MinIO（图片上传/读取）
-```
+  鈹溾攢鈹€ 鍓嶇椤甸潰锛圧eact + Tailwind + shadcn/ui锛?  鈹斺攢鈹€ API Routes锛?api/*锛?        鈹溾攢鈹€ MySQL锛圥risma ORM锛?        鈹斺攢鈹€ MinIO锛堝浘鐗囦笂浼?璇诲彇锛?```
 
-**认证流程**：  
-用户输入密码 → `/api/auth/login` 对比 `.env` 中 `SITE_PASSWORD` → 匹配则签发 JWT Cookie（14天）→ 后续请求中间件自动验证 Cookie
+**璁よ瘉娴佺▼**锛? 
+鐢ㄦ埛杈撳叆瀵嗙爜 鈫?`/api/auth/login` 瀵规瘮 `.env` 涓?`SITE_PASSWORD` 鈫?鍖归厤鍒欑鍙?JWT Cookie锛?4澶╋級鈫?鍚庣画璇锋眰涓棿浠惰嚜鍔ㄩ獙璇?Cookie
 
 ---
 
-## 五、数据库设计（MySQL）
-
-### 1. 标签表 `tags`
+## 浜斻€佹暟鎹簱璁捐锛圡ySQL锛?
+### 1. 鏍囩琛?`tags`
 ```sql
 id          INT AUTO_INCREMENT PRIMARY KEY
 name        VARCHAR(50) NOT NULL
-color       VARCHAR(20) NOT NULL  -- 十六进制颜色值，如 #FF5733
+color       VARCHAR(20) NOT NULL  -- 鍗佸叚杩涘埗棰滆壊鍊硷紝濡?#FF5733
 created_at  DATETIME DEFAULT NOW()
 ```
 
-### 2. 项目介绍板块表 `project_sections`
+### 2. 椤圭洰浠嬬粛鏉垮潡琛?`project_sections`
 ```sql
 id          INT AUTO_INCREMENT PRIMARY KEY
-title       VARCHAR(100) NOT NULL   -- 如"项目实施方法"、"创新点"
-content     LONGTEXT                -- 富文本 HTML
+title       VARCHAR(100) NOT NULL   -- 濡?椤圭洰瀹炴柦鏂规硶"銆?鍒涙柊鐐?
+content     LONGTEXT                -- 瀵屾枃鏈?HTML
 sort_order  INT DEFAULT 0
 updated_at  DATETIME DEFAULT NOW() ON UPDATE NOW()
 ```
 
-### 3. 项目附件表 `project_attachments`
+### 3. 椤圭洰闄勪欢琛?`project_attachments`
 ```sql
 id          INT AUTO_INCREMENT PRIMARY KEY
-name        VARCHAR(200) NOT NULL   -- 文件名
-file_url    VARCHAR(500) NOT NULL   -- MinIO 文件 URL
-file_size   BIGINT                  -- 字节数
-uploaded_at DATETIME DEFAULT NOW()
+name        VARCHAR(200) NOT NULL   -- 鏂囦欢鍚?file_url    VARCHAR(500) NOT NULL   -- MinIO 鏂囦欢 URL
+file_size   BIGINT                  -- 瀛楄妭鏁?uploaded_at DATETIME DEFAULT NOW()
 ```
 
-### 4. 实验记录表 `experiments`
+### 4. 瀹為獙璁板綍琛?`experiments`
 ```sql
 id          INT AUTO_INCREMENT PRIMARY KEY
-title       VARCHAR(200) NOT NULL   -- 实验标题
-recorder    VARCHAR(50) NOT NULL    -- 实验记录人
-exp_date    DATE NOT NULL           -- 实验时间
-summary     TEXT NOT NULL           -- 实验简介
-created_at  DATETIME DEFAULT NOW()
+title       VARCHAR(200) NOT NULL   -- 瀹為獙鏍囬
+recorder    VARCHAR(50) NOT NULL    -- 瀹為獙璁板綍浜?exp_date    DATE NOT NULL           -- 瀹為獙鏃堕棿
+summary     TEXT NOT NULL           -- 瀹為獙绠€浠?created_at  DATETIME DEFAULT NOW()
 updated_at  DATETIME DEFAULT NOW() ON UPDATE NOW()
 ```
 
-### 5. 实验图片表 `experiment_images`
+### 5. 瀹為獙鍥剧墖琛?`experiment_images`
 ```sql
 id              INT AUTO_INCREMENT PRIMARY KEY
 experiment_id   INT NOT NULL REFERENCES experiments(id)
@@ -121,118 +104,106 @@ image_url       VARCHAR(500) NOT NULL
 sort_order      INT DEFAULT 0
 ```
 
-### 6. 实验-标签关联表 `experiment_tags`
+### 6. 瀹為獙-鏍囩鍏宠仈琛?`experiment_tags`
 ```sql
 experiment_id   INT NOT NULL REFERENCES experiments(id)
 tag_id          INT NOT NULL REFERENCES tags(id)
 PRIMARY KEY (experiment_id, tag_id)
 ```
 
-### 7. 实验备注表 `experiment_notes`
+### 7. 瀹為獙澶囨敞琛?`experiment_notes`
 ```sql
 id              INT AUTO_INCREMENT PRIMARY KEY
 experiment_id   INT NOT NULL REFERENCES experiments(id)
-content         LONGTEXT NOT NULL  -- 富文本 HTML，可含图片
-created_at      DATETIME DEFAULT NOW()
+content         LONGTEXT NOT NULL  -- 瀵屾枃鏈?HTML锛屽彲鍚浘鐗?created_at      DATETIME DEFAULT NOW()
 ```
 
 ---
 
-## 六、页面路由结构
-
+## 鍏€侀〉闈㈣矾鐢辩粨鏋?
 ```
-/                          密码登录页
-/dashboard                 主页（两个入口卡片）
-/project                   项目介绍
-  └── 各板块富文本展示 + 附件下载 + 编辑按钮
-/experiments               实验统计列表
-  ├── 标签筛选栏（多选）
-  ├── 实验记录卡片列表（时间倒序）
-  └── 新建实验按钮（弹窗）
-/experiments/[id]          实验详情页
-  ├── 基本信息（标题/记录人/时间/简介/标签）
-  ├── 实验图片画廊
-  └── 备注区（富文本，可追加多条备注）
+/                          瀵嗙爜鐧诲綍椤?/dashboard                 涓婚〉锛堜袱涓叆鍙ｅ崱鐗囷級
+/project                   椤圭洰浠嬬粛
+  鈹斺攢鈹€ 鍚勬澘鍧楀瘜鏂囨湰灞曠ず + 闄勪欢涓嬭浇 + 缂栬緫鎸夐挳
+/experiments               瀹為獙缁熻鍒楄〃
+  鈹溾攢鈹€ 鏍囩绛涢€夋爮锛堝閫夛級
+  鈹溾攢鈹€ 瀹為獙璁板綍鍗＄墖鍒楄〃锛堟椂闂村€掑簭锛?  鈹斺攢鈹€ 鏂板缓瀹為獙鎸夐挳锛堝脊绐楋級
+/experiments/[id]          瀹為獙璇︽儏椤?  鈹溾攢鈹€ 鍩烘湰淇℃伅锛堟爣棰?璁板綍浜?鏃堕棿/绠€浠?鏍囩锛?  鈹溾攢鈹€ 瀹為獙鍥剧墖鐢诲粖
+  鈹斺攢鈹€ 澶囨敞鍖猴紙瀵屾枃鏈紝鍙拷鍔犲鏉″娉級
 ```
 
 ---
 
-## 七、API 接口设计
+## 涓冦€丄PI 鎺ュ彛璁捐
 
-### 认证
-| 方法 | 路径 | 说明 |
+### 璁よ瘉
+| 鏂规硶 | 璺緞 | 璇存槑 |
 |------|------|------|
-| POST | `/api/auth/login` | 验证密码，签发 JWT Cookie |
-| POST | `/api/auth/logout` | 清除 Cookie |
+| POST | `/api/auth/login` | 楠岃瘉瀵嗙爜锛岀鍙?JWT Cookie |
+| POST | `/api/auth/logout` | 娓呴櫎 Cookie |
 
-### 项目介绍
-| 方法 | 路径 | 说明 |
+### 椤圭洰浠嬬粛
+| 鏂规硶 | 璺緞 | 璇存槑 |
 |------|------|------|
-| GET | `/api/project/sections` | 获取所有板块 |
-| PUT | `/api/project/sections/[id]` | 更新某板块内容 |
-| POST | `/api/project/sections` | 新建板块 |
-| DELETE | `/api/project/sections/[id]` | 删除板块 |
-| GET | `/api/project/attachments` | 获取所有附件 |
-| POST | `/api/project/attachments` | 上传附件 |
-| DELETE | `/api/project/attachments/[id]` | 删除附件 |
+| GET | `/api/project/sections` | 鑾峰彇鎵€鏈夋澘鍧?|
+| PUT | `/api/project/sections/[id]` | 鏇存柊鏌愭澘鍧楀唴瀹?|
+| POST | `/api/project/sections` | 鏂板缓鏉垮潡 |
+| DELETE | `/api/project/sections/[id]` | 鍒犻櫎鏉垮潡 |
+| GET | `/api/project/attachments` | 鑾峰彇鎵€鏈夐檮浠?|
+| POST | `/api/project/attachments` | 涓婁紶闄勪欢 |
+| DELETE | `/api/project/attachments/[id]` | 鍒犻櫎闄勪欢 |
 
-### 实验记录
-| 方法 | 路径 | 说明 |
+### 瀹為獙璁板綍
+| 鏂规硶 | 璺緞 | 璇存槑 |
 |------|------|------|
-| GET | `/api/experiments` | 获取列表（支持标签筛选） |
-| POST | `/api/experiments` | 新建实验记录 |
-| GET | `/api/experiments/[id]` | 获取实验详情 |
-| PUT | `/api/experiments/[id]` | 编辑实验记录 |
-| DELETE | `/api/experiments/[id]` | 删除实验记录 |
-| POST | `/api/experiments/[id]/notes` | 新增备注 |
-| DELETE | `/api/experiments/[id]/notes/[noteId]` | 删除备注 |
+| GET | `/api/experiments` | 鑾峰彇鍒楄〃锛堟敮鎸佹爣绛剧瓫閫夛級 |
+| POST | `/api/experiments` | 鏂板缓瀹為獙璁板綍 |
+| GET | `/api/experiments/[id]` | 鑾峰彇瀹為獙璇︽儏 |
+| PUT | `/api/experiments/[id]` | 缂栬緫瀹為獙璁板綍 |
+| DELETE | `/api/experiments/[id]` | 鍒犻櫎瀹為獙璁板綍 |
+| POST | `/api/experiments/[id]/notes` | 鏂板澶囨敞 |
+| DELETE | `/api/experiments/[id]/notes/[noteId]` | 鍒犻櫎澶囨敞 |
 
-### 标签
-| 方法 | 路径 | 说明 |
+### 鏍囩
+| 鏂规硶 | 璺緞 | 璇存槑 |
 |------|------|------|
-| GET | `/api/tags` | 获取所有标签 |
-| POST | `/api/tags` | 新建标签 |
-| DELETE | `/api/tags/[id]` | 删除标签 |
+| GET | `/api/tags` | 鑾峰彇鎵€鏈夋爣绛?|
+| POST | `/api/tags` | 鏂板缓鏍囩 |
+| DELETE | `/api/tags/[id]` | 鍒犻櫎鏍囩 |
 
-### 文件上传
-| 方法 | 路径 | 说明 |
+### 鏂囦欢涓婁紶
+| 鏂规硶 | 璺緞 | 璇存槑 |
 |------|------|------|
-| POST | `/api/upload` | 上传图片/文件到 MinIO，返回 URL |
+| POST | `/api/upload` | 涓婁紶鍥剧墖/鏂囦欢鍒?MinIO锛岃繑鍥?URL |
 
 ---
 
-## 八、响应式设计策略
+## 鍏€佸搷搴斿紡璁捐绛栫暐
 
-- 全程使用 Tailwind CSS 响应式断点（`sm:` / `md:` / `lg:`）
-- 手机端：单列布局，底部或汉堡菜单导航
-- 电脑端：侧边栏导航 + 主内容区双栏布局
-- 图片画廊：手机 2 列，电脑 3-4 列
-
+- 鍏ㄧ▼浣跨敤 Tailwind CSS 鍝嶅簲寮忔柇鐐癸紙`sm:` / `md:` / `lg:`锛?- 鎵嬫満绔細鍗曞垪甯冨眬锛屽簳閮ㄦ垨姹夊牎鑿滃崟瀵艰埅
+- 鐢佃剳绔細渚ц竟鏍忓鑸?+ 涓诲唴瀹瑰尯鍙屾爮甯冨眬
+- 鍥剧墖鐢诲粖锛氭墜鏈?2 鍒楋紝鐢佃剳 3-4 鍒?
 ---
 
-## 九、环境变量（.env）
-
+## 涔濄€佺幆澧冨彉閲忥紙.env锛?
 ```env
-# 数据库
-DATABASE_URL="mysql://jxt:123456@8.152.100.169:3306/jxt"
+# 鏁版嵁搴?DATABASE_URL="mysql://user:password@db-host:3306/dbname"
 
 # MinIO
-MINIO_ENDPOINT="http://8.152.100.169:9000"
-MINIO_ACCESS_KEY="minioadmin"
-MINIO_SECRET_KEY="minioadmin"
+MINIO_ENDPOINT="http://minio-host:9000"
+MINIO_ACCESS_KEY="your-minio-secret"
+MINIO_SECRET_KEY="your-minio-secret"
 MINIO_BUCKET="jxt"
 
-# 认证
+# 璁よ瘉
 SITE_PASSWORD="your_password_here"
 JWT_SECRET="your_jwt_secret_here"
 ```
 
 ---
 
-## 十、部署方案
+## 鍗併€侀儴缃叉柟妗?
+1. 浠ｇ爜鎵樼锛欸itHub 绉佹湁浠撳簱
+2. Vercel 杩炴帴 GitHub锛岃嚜鍔?CI/CD
+3. Vercel 鐜鍙橀噺閰嶇疆锛堝悓 `.env` 鍐呭锛?4. MinIO bucket 璁剧疆閫傚綋鐨勮闂瓥鐣ワ紙鍥剧墖鍏紑鍙锛?5. MySQL 鏁版嵁搴撻€氳繃 Prisma migrate 鍒濆鍖栬〃缁撴瀯
 
-1. 代码托管：GitHub 私有仓库
-2. Vercel 连接 GitHub，自动 CI/CD
-3. Vercel 环境变量配置（同 `.env` 内容）
-4. MinIO bucket 设置适当的访问策略（图片公开可读）
-5. MySQL 数据库通过 Prisma migrate 初始化表结构

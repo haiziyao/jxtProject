@@ -3,7 +3,6 @@
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { TopNav } from "@/components/top-nav";
 import {
-  DEFAULT_TODOS,
   loadTodosFromStorage,
   saveTodosToStorage,
   TodoItem,
@@ -11,7 +10,7 @@ import {
 } from "@/lib/todo-store";
 
 export default function TodoPage() {
-  const [todos, setTodos] = useState<TodoItem[]>(DEFAULT_TODOS);
+  const [todos, setTodos] = useState<TodoItem[]>([]);
   const [title, setTitle] = useState("");
   const [level, setLevel] = useState<TodoLevel>("medium");
   const [dueDate, setDueDate] = useState("");

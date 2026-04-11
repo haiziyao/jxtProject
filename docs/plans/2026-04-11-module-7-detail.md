@@ -1,15 +1,15 @@
-# Module 7: 实验详情模块
+﻿# Module 7: 瀹為獙璇︽儏妯″潡
 
 > **For Claude:** Part of the lab data platform implementation plan. Run after Module 6.
 
 ---
 
-### Task 7.1: 实验详情 / 编辑 / 删除 API
+### Task 7.1: 瀹為獙璇︽儏 / 缂栬緫 / 鍒犻櫎 API
 
 **Files:**
 - Create: `src/app/api/experiments/[id]/route.ts`
 
-**Step 1: 创建 `src/app/api/experiments/[id]/route.ts`**
+**Step 1: 鍒涘缓 `src/app/api/experiments/[id]/route.ts`**
 
 ```ts
 import { NextRequest, NextResponse } from "next/server";
@@ -17,8 +17,7 @@ import { prisma } from "@/lib/prisma";
 
 type Ctx = { params: { id: string } };
 
-// 获取实验详情（含 images / tags / notes）
-export async function GET(_req: NextRequest, { params }: Ctx) {
+// 鑾峰彇瀹為獙璇︽儏锛堝惈 images / tags / notes锛?export async function GET(_req: NextRequest, { params }: Ctx) {
   const id = parseInt(params.id);
   const exp = await prisma.experiment.findUnique({
     where: { id },
@@ -28,7 +27,7 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
       notes: { orderBy: { createdAt: "desc" } },
     },
   });
-  if (!exp) return NextResponse.json({ error: "不存在" }, { status: 404 });
+  if (!exp) return NextResponse.json({ error: "涓嶅瓨鍦? }, { status: 404 });
 
   return NextResponse.json({
     ...exp,
@@ -36,12 +35,12 @@ export async function GET(_req: NextRequest, { params }: Ctx) {
   });
 }
 
-// 更新实验基本信息
+// 鏇存柊瀹為獙鍩烘湰淇℃伅
 export async function PUT(req: NextRequest, { params }: Ctx) {
   const id = parseInt(params.id);
   const { title, recorder, expDate, summary, tagIds } = await req.json();
 
-  // 先删旧标签关联，再写新的
+  // 鍏堝垹鏃ф爣绛惧叧鑱旓紝鍐嶅啓鏂扮殑
   await prisma.experimentTag.deleteMany({ where: { experimentId: id } });
 
   const exp = await prisma.experiment.update({
@@ -61,8 +60,7 @@ export async function PUT(req: NextRequest, { params }: Ctx) {
   return NextResponse.json({ ...exp, tags: exp.tags.map((et) => et.tag) });
 }
 
-// 删除实验（级联删除 images / tags / notes）
-export async function DELETE(_req: NextRequest, { params }: Ctx) {
+// 鍒犻櫎瀹為獙锛堢骇鑱斿垹闄?images / tags / notes锛?export async function DELETE(_req: NextRequest, { params }: Ctx) {
   const id = parseInt(params.id);
   await prisma.experiment.delete({ where: { id } });
   return NextResponse.json({ ok: true });
@@ -78,13 +76,13 @@ git commit -m "feat: add experiment detail/edit/delete API"
 
 ---
 
-### Task 7.2: 图片管理 API Routes
+### Task 7.2: 鍥剧墖绠＄悊 API Routes
 
 **Files:**
 - Create: `src/app/api/experiments/[id]/images/route.ts`
 - Create: `src/app/api/experiments/[id]/images/[imageId]/route.ts`
 
-**Step 1: 创建 `src/app/api/experiments/[id]/images/route.ts`**
+**Step 1: 鍒涘缓 `src/app/api/experiments/[id]/images/route.ts`**
 
 ```ts
 import { NextRequest, NextResponse } from "next/server";
@@ -98,7 +96,7 @@ export async function POST(
   const { imageUrl, sortOrder } = await req.json();
 
   if (!imageUrl) {
-    return NextResponse.json({ error: "imageUrl 必填" }, { status: 400 });
+    return NextResponse.json({ error: "imageUrl 蹇呭～" }, { status: 400 });
   }
 
   const image = await prisma.experimentImage.create({
@@ -108,7 +106,7 @@ export async function POST(
 }
 ```
 
-**Step 2: 创建 `src/app/api/experiments/[id]/images/[imageId]/route.ts`**
+**Step 2: 鍒涘缓 `src/app/api/experiments/[id]/images/[imageId]/route.ts`**
 
 ```ts
 import { NextRequest, NextResponse } from "next/server";
@@ -133,13 +131,13 @@ git commit -m "feat: add experiment images API (add/delete)"
 
 ---
 
-### Task 7.3: 备注 API Routes
+### Task 7.3: 澶囨敞 API Routes
 
 **Files:**
 - Create: `src/app/api/experiments/[id]/notes/route.ts`
 - Create: `src/app/api/experiments/[id]/notes/[noteId]/route.ts`
 
-**Step 1: 创建 `src/app/api/experiments/[id]/notes/route.ts`**
+**Step 1: 鍒涘缓 `src/app/api/experiments/[id]/notes/route.ts`**
 
 ```ts
 import { NextRequest, NextResponse } from "next/server";
@@ -153,7 +151,7 @@ export async function POST(
   const { content } = await req.json();
 
   if (!content) {
-    return NextResponse.json({ error: "content 必填" }, { status: 400 });
+    return NextResponse.json({ error: "content 蹇呭～" }, { status: 400 });
   }
 
   const note = await prisma.experimentNote.create({
@@ -163,7 +161,7 @@ export async function POST(
 }
 ```
 
-**Step 2: 创建 `src/app/api/experiments/[id]/notes/[noteId]/route.ts`**
+**Step 2: 鍒涘缓 `src/app/api/experiments/[id]/notes/[noteId]/route.ts`**
 
 ```ts
 import { NextRequest, NextResponse } from "next/server";
@@ -188,12 +186,12 @@ git commit -m "feat: add experiment notes API (add/delete)"
 
 ---
 
-### Task 7.4: 图片画廊组件
+### Task 7.4: 鍥剧墖鐢诲粖缁勪欢
 
 **Files:**
 - Create: `src/components/experiments/image-gallery.tsx`
 
-**Step 1: 创建 `src/components/experiments/image-gallery.tsx`**
+**Step 1: 鍒涘缓 `src/components/experiments/image-gallery.tsx`**
 
 ```tsx
 "use client";
@@ -223,14 +221,13 @@ export function ImageGallery({ experimentId, images }: Props) {
     if (!file) return;
     setUploading(true);
 
-    // 上传到 MinIO
+    // 涓婁紶鍒?MinIO
     const formData = new FormData();
     formData.append("file", file);
     const uploadRes = await fetch("/api/upload", { method: "POST", body: formData });
     const { url } = await uploadRes.json();
 
-    // 关联到实验
-    await fetch(`/api/experiments/${experimentId}/images`, {
+    // 鍏宠仈鍒板疄楠?    await fetch(`/api/experiments/${experimentId}/images`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({ imageUrl: url, sortOrder: images.length }),
@@ -238,12 +235,12 @@ export function ImageGallery({ experimentId, images }: Props) {
 
     setUploading(false);
     router.refresh();
-    // 清空 input，允许重复选同一文件
+    // 娓呯┖ input锛屽厑璁搁噸澶嶉€夊悓涓€鏂囦欢
     if (fileInputRef.current) fileInputRef.current.value = "";
   }
 
   async function handleDelete(imageId: number) {
-    if (!confirm("确认删除此图片？")) return;
+    if (!confirm("纭鍒犻櫎姝ゅ浘鐗囷紵")) return;
     await fetch(`/api/experiments/${experimentId}/images/${imageId}`, {
       method: "DELETE",
     });
@@ -253,7 +250,7 @@ export function ImageGallery({ experimentId, images }: Props) {
   return (
     <div className="space-y-3">
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold">实验图片</h3>
+        <h3 className="font-semibold">瀹為獙鍥剧墖</h3>
         <Button
           size="sm"
           variant="outline"
@@ -261,7 +258,7 @@ export function ImageGallery({ experimentId, images }: Props) {
           disabled={uploading}
         >
           <Upload className="h-4 w-4 mr-1" />
-          {uploading ? "上传中..." : "上传图片"}
+          {uploading ? "涓婁紶涓?.." : "涓婁紶鍥剧墖"}
         </Button>
         <input
           ref={fileInputRef}
@@ -273,7 +270,7 @@ export function ImageGallery({ experimentId, images }: Props) {
       </div>
 
       {images.length === 0 && (
-        <p className="text-sm text-muted-foreground">暂无图片</p>
+        <p className="text-sm text-muted-foreground">鏆傛棤鍥剧墖</p>
       )}
 
       <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-2">
@@ -285,10 +282,10 @@ export function ImageGallery({ experimentId, images }: Props) {
           >
             <Image
               src={img.imageUrl}
-              alt="实验图片"
+              alt="瀹為獙鍥剧墖"
               fill
               className="object-cover"
-              unoptimized // MinIO 外部图片无需 Next.js 优化
+              unoptimized // MinIO 澶栭儴鍥剧墖鏃犻渶 Next.js 浼樺寲
             />
             <button
               className="absolute top-1 right-1 bg-black/50 rounded-full p-1 opacity-0 group-hover:opacity-100 transition-opacity"
@@ -300,7 +297,7 @@ export function ImageGallery({ experimentId, images }: Props) {
         ))}
       </div>
 
-      {/* 图片全屏预览 */}
+      {/* 鍥剧墖鍏ㄥ睆棰勮 */}
       <Dialog open={!!preview} onOpenChange={() => setPreview(null)}>
         <DialogContent className="max-w-4xl p-2">
           {preview && (
@@ -312,7 +309,7 @@ export function ImageGallery({ experimentId, images }: Props) {
               >
                 <X className="h-4 w-4" />
               </Button>
-              <img src={preview} alt="预览" className="w-full h-auto rounded-md" />
+              <img src={preview} alt="棰勮" className="w-full h-auto rounded-md" />
             </div>
           )}
         </DialogContent>
@@ -322,9 +319,9 @@ export function ImageGallery({ experimentId, images }: Props) {
 }
 ```
 
-**Step 2: 配置 Next.js 允许外部图片域名**
+**Step 2: 閰嶇疆 Next.js 鍏佽澶栭儴鍥剧墖鍩熷悕**
 
-在 `next.config.ts` 中添加：
+鍦?`next.config.ts` 涓坊鍔狅細
 
 ```ts
 const nextConfig = {
@@ -332,7 +329,7 @@ const nextConfig = {
     remotePatterns: [
       {
         protocol: "http",
-        hostname: "8.152.100.169",
+        hostname: "your-minio-host",
         port: "9000",
         pathname: "/jxt/**",
       },
@@ -351,12 +348,11 @@ git commit -m "feat: add image gallery component with upload and full-screen pre
 
 ---
 
-### Task 7.5: 备注区组件
-
+### Task 7.5: 澶囨敞鍖虹粍浠?
 **Files:**
 - Create: `src/components/experiments/experiment-notes.tsx`
 
-**Step 1: 创建 `src/components/experiments/experiment-notes.tsx`**
+**Step 1: 鍒涘缓 `src/components/experiments/experiment-notes.tsx`**
 
 ```tsx
 "use client";
@@ -395,7 +391,7 @@ export function ExperimentNotes({ experimentId, notes }: Props) {
   }
 
   async function handleDeleteNote(noteId: number) {
-    if (!confirm("确认删除此备注？")) return;
+    if (!confirm("纭鍒犻櫎姝ゅ娉紵")) return;
     await fetch(`/api/experiments/${experimentId}/notes/${noteId}`, {
       method: "DELETE",
     });
@@ -405,32 +401,32 @@ export function ExperimentNotes({ experimentId, notes }: Props) {
   return (
     <div className="space-y-4">
       <div className="flex items-center justify-between">
-        <h3 className="font-semibold">备注</h3>
+        <h3 className="font-semibold">澶囨敞</h3>
         {!adding && (
           <Button size="sm" variant="outline" onClick={() => setAdding(true)}>
-            <Plus className="h-4 w-4 mr-1" /> 添加备注
+            <Plus className="h-4 w-4 mr-1" /> 娣诲姞澶囨敞
           </Button>
         )}
       </div>
 
-      {/* 新增备注编辑区 */}
+      {/* 鏂板澶囨敞缂栬緫鍖?*/}
       {adding && (
         <div className="space-y-2 border rounded-md p-3 bg-muted/20">
           <RichTextEditor value="" onChange={setNewContent} />
           <div className="flex gap-2 justify-end">
             <Button variant="outline" size="sm" onClick={() => { setAdding(false); setNewContent(""); }}>
-              取消
+              鍙栨秷
             </Button>
             <Button size="sm" onClick={handleAddNote} disabled={saving}>
-              {saving ? "保存中..." : "保存备注"}
+              {saving ? "淇濆瓨涓?.." : "淇濆瓨澶囨敞"}
             </Button>
           </div>
         </div>
       )}
 
-      {/* 已有备注列表 */}
+      {/* 宸叉湁澶囨敞鍒楄〃 */}
       {notes.length === 0 && !adding && (
-        <p className="text-sm text-muted-foreground">暂无备注</p>
+        <p className="text-sm text-muted-foreground">鏆傛棤澶囨敞</p>
       )}
       {notes.map((note) => (
         <div key={note.id} className="border rounded-md p-3 space-y-2">
@@ -462,13 +458,13 @@ git commit -m "feat: add experiment notes component with Tiptap editor"
 
 ---
 
-### Task 7.6: 实验详情页面
+### Task 7.6: 瀹為獙璇︽儏椤甸潰
 
 **Files:**
 - Create: `src/app/(protected)/experiments/[id]/page.tsx`
 - Create: `src/components/experiments/edit-experiment-dialog.tsx`
 
-**Step 1: 创建编辑弹窗 `src/components/experiments/edit-experiment-dialog.tsx`**
+**Step 1: 鍒涘缓缂栬緫寮圭獥 `src/components/experiments/edit-experiment-dialog.tsx`**
 
 ```tsx
 "use client";
@@ -528,28 +524,28 @@ export function EditExperimentDialog({ experiment, allTags, open, onClose }: Pro
   return (
     <Dialog open={open} onOpenChange={onClose}>
       <DialogContent className="max-w-lg">
-        <DialogHeader><DialogTitle>编辑实验记录</DialogTitle></DialogHeader>
+        <DialogHeader><DialogTitle>缂栬緫瀹為獙璁板綍</DialogTitle></DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>实验标题</Label>
+            <Label>瀹為獙鏍囬</Label>
             <Input value={title} onChange={(e) => setTitle(e.target.value)} />
           </div>
           <div className="grid grid-cols-2 gap-4">
             <div className="space-y-2">
-              <Label>记录人</Label>
+              <Label>璁板綍浜?/Label>
               <Input value={recorder} onChange={(e) => setRecorder(e.target.value)} />
             </div>
             <div className="space-y-2">
-              <Label>实验日期</Label>
+              <Label>瀹為獙鏃ユ湡</Label>
               <Input type="date" value={expDate} onChange={(e) => setExpDate(e.target.value)} />
             </div>
           </div>
           <div className="space-y-2">
-            <Label>实验简介</Label>
+            <Label>瀹為獙绠€浠?/Label>
             <Textarea value={summary} onChange={(e) => setSummary(e.target.value)} rows={3} />
           </div>
           <div className="space-y-2">
-            <Label>标签</Label>
+            <Label>鏍囩</Label>
             <div className="flex flex-wrap gap-2">
               {allTags.map((tag) => (
                 <Badge
@@ -567,9 +563,9 @@ export function EditExperimentDialog({ experiment, allTags, open, onClose }: Pro
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={onClose}>取消</Button>
+          <Button variant="outline" onClick={onClose}>鍙栨秷</Button>
           <Button onClick={handleSave} disabled={saving}>
-            {saving ? "保存中..." : "保存"}
+            {saving ? "淇濆瓨涓?.." : "淇濆瓨"}
           </Button>
         </DialogFooter>
       </DialogContent>
@@ -578,7 +574,7 @@ export function EditExperimentDialog({ experiment, allTags, open, onClose }: Pro
 }
 ```
 
-**Step 2: 创建详情页 `src/app/(protected)/experiments/[id]/page.tsx`**
+**Step 2: 鍒涘缓璇︽儏椤?`src/app/(protected)/experiments/[id]/page.tsx`**
 
 ```tsx
 import { notFound } from "next/navigation";
@@ -623,7 +619,7 @@ export default async function ExperimentDetailPage({
 }
 ```
 
-**Step 3: 创建 `src/components/experiments/experiment-detail-client.tsx`**
+**Step 3: 鍒涘缓 `src/components/experiments/experiment-detail-client.tsx`**
 
 ```tsx
 "use client";
@@ -654,21 +650,21 @@ export function ExperimentDetailClient({ experiment, allTags }: Props) {
   const [showEdit, setShowEdit] = useState(false);
 
   async function handleDelete() {
-    if (!confirm(`确认删除实验「${experiment.title}」？此操作不可撤销。`)) return;
+    if (!confirm(`纭鍒犻櫎瀹為獙銆?{experiment.title}銆嶏紵姝ゆ搷浣滀笉鍙挙閿€銆俙)) return;
     await fetch(`/api/experiments/${experiment.id}`, { method: "DELETE" });
     router.push("/experiments");
   }
 
   return (
     <div className="space-y-6 max-w-3xl">
-      {/* 顶部导航 */}
+      {/* 椤堕儴瀵艰埅 */}
       <div className="flex items-center gap-2">
         <Button variant="ghost" size="sm" asChild>
-          <Link href="/experiments"><ArrowLeft className="h-4 w-4 mr-1" />返回列表</Link>
+          <Link href="/experiments"><ArrowLeft className="h-4 w-4 mr-1" />杩斿洖鍒楄〃</Link>
         </Button>
       </div>
 
-      {/* 基本信息卡片 */}
+      {/* 鍩烘湰淇℃伅鍗＄墖 */}
       <Card>
         <CardContent className="pt-6 space-y-4">
           <div className="flex items-start justify-between gap-4">
@@ -683,8 +679,8 @@ export function ExperimentDetailClient({ experiment, allTags }: Props) {
             </div>
           </div>
           <div className="flex flex-wrap gap-x-4 gap-y-1 text-sm text-muted-foreground">
-            <span>记录人：{experiment.recorder}</span>
-            <span>日期：{experiment.expDate}</span>
+            <span>璁板綍浜猴細{experiment.recorder}</span>
+            <span>鏃ユ湡锛歿experiment.expDate}</span>
           </div>
           <p className="text-sm">{experiment.summary}</p>
           <div className="flex flex-wrap gap-1">
@@ -700,14 +696,14 @@ export function ExperimentDetailClient({ experiment, allTags }: Props) {
         </CardContent>
       </Card>
 
-      {/* 图片画廊 */}
+      {/* 鍥剧墖鐢诲粖 */}
       <Card>
         <CardContent className="pt-6">
           <ImageGallery experimentId={experiment.id} images={experiment.images} />
         </CardContent>
       </Card>
 
-      {/* 备注区 */}
+      {/* 澶囨敞鍖?*/}
       <Card>
         <CardContent className="pt-6">
           <ExperimentNotes experimentId={experiment.id} notes={experiment.notes} />
@@ -725,17 +721,16 @@ export function ExperimentDetailClient({ experiment, allTags }: Props) {
 }
 ```
 
-**Step 4: 验证**
+**Step 4: 楠岃瘉**
 
 ```bash
 npm run build
 ```
 
-访问 `/experiments/1`（需先创建一条实验记录）：
-- 基本信息正常展示，编辑弹窗可保存
-- 图片上传后显示在画廊
-- 备注添加后出现在列表
-- 删除实验后跳回列表页
+璁块棶 `/experiments/1`锛堥渶鍏堝垱寤轰竴鏉″疄楠岃褰曪級锛?- 鍩烘湰淇℃伅姝ｅ父灞曠ず锛岀紪杈戝脊绐楀彲淇濆瓨
+- 鍥剧墖涓婁紶鍚庢樉绀哄湪鐢诲粖
+- 澶囨敞娣诲姞鍚庡嚭鐜板湪鍒楄〃
+- 鍒犻櫎瀹為獙鍚庤烦鍥炲垪琛ㄩ〉
 
 **Step 5: Commit**
 
@@ -746,12 +741,9 @@ git commit -m "feat: add experiment detail page with image gallery and notes"
 
 ---
 
-**Module 7 完成检查清单：**
-- [ ] GET `/api/experiments/[id]` 返回含 images/tags/notes 的详情
-- [ ] PUT `/api/experiments/[id]` 可更新基本信息和标签
-- [ ] DELETE `/api/experiments/[id]` 级联删除所有关联数据
-- [ ] 图片上传后显示在画廊，可全屏预览
-- [ ] 图片删除后从画廊消失
-- [ ] 备注新增/删除正常工作
-- [ ] 编辑弹窗保存后页面刷新
-- [ ] `npm run build` 无错误
+**Module 7 瀹屾垚妫€鏌ユ竻鍗曪細**
+- [ ] GET `/api/experiments/[id]` 杩斿洖鍚?images/tags/notes 鐨勮鎯?- [ ] PUT `/api/experiments/[id]` 鍙洿鏂板熀鏈俊鎭拰鏍囩
+- [ ] DELETE `/api/experiments/[id]` 绾ц仈鍒犻櫎鎵€鏈夊叧鑱旀暟鎹?- [ ] 鍥剧墖涓婁紶鍚庢樉绀哄湪鐢诲粖锛屽彲鍏ㄥ睆棰勮
+- [ ] 鍥剧墖鍒犻櫎鍚庝粠鐢诲粖娑堝け
+- [ ] 澶囨敞鏂板/鍒犻櫎姝ｅ父宸ヤ綔
+- [ ] 缂栬緫寮圭獥淇濆瓨鍚庨〉闈㈠埛鏂?- [ ] `npm run build` 鏃犻敊璇?

@@ -3,7 +3,6 @@
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { TopNav } from "@/components/top-nav";
 import {
-  DEFAULT_TODOS,
   loadTodosFromStorage,
   saveTodosToStorage,
   TodoItem,
@@ -76,7 +75,7 @@ export default function DashboardPage() {
   const [metaEditing, setMetaEditing] = useState(false);
   const [projectMeta, setProjectMeta] = useState(DEFAULT_META);
   const [metaDraft, setMetaDraft] = useState(DEFAULT_META);
-  const [todos, setTodos] = useState<TodoItem[]>(DEFAULT_TODOS);
+  const [todos, setTodos] = useState<TodoItem[]>([]);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [todoModalOpen, setTodoModalOpen] = useState(false);
   const [suggestionTitle, setSuggestionTitle] = useState("");
