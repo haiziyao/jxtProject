@@ -1,14 +1,23 @@
 import { NextRequest, NextResponse } from "next/server";
+import { Prisma } from "@prisma/client";
 import { prisma } from "@/lib/prisma";
 
 export async function GET() {
-  const attachments = await prisma.projectAttachment.findMany({ orderBy: { uploadedAt: "desc" } });
-  return NextResponse.json(
-    attachments.map((attachment) => ({
-      ...attachment,
-      fileSize: attachment.fileSize?.toString() ?? null,
-    })),
-  );
+  try {
+    const attachments = await prisma.projectAttachment.findMany({ orderBy: { uploadedAt: "desc" } });
+    return NextResponse.json(
+      attachments.map((attachment) => ({
+        ...attachment,
+        fileSize: attachment.fileSize?.toString() ?? null,
+      })),
+    );
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2021") {
+      console.error("Table project_attachments missing. Returning empty list.");
+      return NextResponse.json([]);
+    }
+    throw error;
+  }
 }
 
 export async function POST(request: NextRequest) {
