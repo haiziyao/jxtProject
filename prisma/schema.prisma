@@ -81,3 +81,55 @@ model ExperimentNote {
 
   @@map("experiment_notes")
 }
+
+model TeamMember {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(100)
+  className String?  @map("class_name") @db.VarChar(100)
+  phone     String?  @db.VarChar(30)
+  studentNo String?  @map("student_no") @db.VarChar(50)
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  @@map("team_members")
+}
+
+model Advisor {
+  id        Int      @id @default(autoincrement())
+  name      String   @db.VarChar(100)
+  contact   String?  @db.VarChar(200)
+  createdAt DateTime @default(now()) @map("created_at") @db.DateTime(3)
+
+  @@map("advisors")
+}
+
+model DashboardSetting {
+  id            Int      @id
+  projectName   String   @map("project_name") @db.LongText
+  teamMembers   String   @map("team_members") @db.LongText
+  advisors      String   @db.LongText
+  progressSteps Json     @map("progress_steps")
+  updatedAt     DateTime @updatedAt @map("updated_at") @db.DateTime(3)
+
+  @@map("dashboard_settings")
+}
+
+enum TodoPriority {
+  critical
+  high
+  medium
+  low
+}
+
+model Todo {
+  id        Int          @id @default(autoincrement())
+  title     String       @db.VarChar(200)
+  level     TodoPriority @default(medium)
+  dueDate   DateTime     @map("due_date") @db.Date
+  detail    String       @db.Text
+  done      Boolean      @default(false)
+  deletedAt DateTime?    @map("deleted_at") @db.DateTime(3)
+  createdAt DateTime     @default(now()) @map("created_at") @db.DateTime(3)
+  updatedAt DateTime     @updatedAt @map("updated_at") @db.DateTime(3)
+
+  @@map("todos")
+}

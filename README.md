@@ -1,36 +1,31 @@
-This is a [Next.js](https://nextjs.org) project bootstrapped with [`create-next-app`](https://nextjs.org/docs/app/api-reference/cli/create-next-app).
+# JXT 实验资料平台
 
-## Getting Started
+项目介绍与进度、成员资料、实验记录、Markdown 正文、附件和待办管理。使用 Next.js 14、Prisma/MySQL 和 MinIO，登录后访问项目数据。
 
-First, run the development server:
+## 开发
+
+需要 Node.js 22、MySQL 和 MinIO。
 
 ```bash
+npm ci
+cp .env.example .env
+# 填入实际环境配置，并设置随机 JWT_SECRET
+npx prisma generate
 npm run dev
-# or
-yarn dev
-# or
-pnpm dev
-# or
-bun dev
 ```
 
-Open [http://localhost:3000](http://localhost:3000) with your browser to see the result.
+已有数据库使用现有表，启动和构建都不会执行迁移、初始化或种子写入。只有全新的空开发库才使用 `npx prisma db push` 建表；不要对已有生产库执行 reset、seed 或未经审查的结构同步。
 
-You can start editing the page by modifying `app/page.tsx`. The page auto-updates as you edit the file.
+## 检查与部署
 
-This project uses [`next/font`](https://nextjs.org/docs/app/building-your-application/optimizing/fonts) to automatically optimize and load [Geist](https://vercel.com/font), a new font family for Vercel.
+```bash
+npm test
+npm run lint
+npm run build
+```
 
-## Learn More
+构建输出为 standalone。将 `.next/static` 复制到 `.next/standalone/.next/static`，存在 `public` 时也复制到 standalone 目录；通过服务管理器运行 `node .next/standalone/server.js`。运行时提供 `.env.example` 所列配置及 `PORT`、`HOSTNAME`。
 
-To learn more about Next.js, take a look at the following resources:
+生产部署应在独立版本目录完成构建，保留旧版本，切换链接后重启服务。数据库备份、配置、凭据和用户上传文件不进入 Git。HTTP 部署支持登录；使用 HTTPS 时登录 Cookie 自动启用 Secure。
 
-- [Next.js Documentation](https://nextjs.org/docs) - learn about Next.js features and API.
-- [Learn Next.js](https://nextjs.org/learn) - an interactive Next.js tutorial.
-
-You can check out [the Next.js GitHub repository](https://github.com/vercel/next.js) - your feedback and contributions are welcome!
-
-## Deploy on Vercel
-
-The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
-
-Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+数据接入与回归范围见 [恢复与检查记录](docs/recovery-and-audit.md)。

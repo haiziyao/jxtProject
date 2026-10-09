@@ -3,7 +3,7 @@ import "./globals.css";
 
 export const metadata: Metadata = {
   title: "Lab Data Platform",
-  description: "Frontend reset for redesign",
+  description: "项目资料、实验记录与待办管理平台",
 };
 
 export default function RootLayout({

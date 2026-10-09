@@ -4,6 +4,8 @@ import Link from "next/link";
 import { FormEvent, useEffect, useMemo, useState } from "react";
 import { useRouter } from "next/navigation";
 import { TopNav } from "@/components/top-nav";
+import { Modal } from "@/components/modal";
+import { localDate } from "@/lib/dates";
 
 type Tag = {
   id: number;
@@ -28,6 +30,8 @@ export default function ExperimentsPage() {
   const [loading, setLoading] = useState(true);
   const [showCreate, setShowCreate] = useState(false);
   const [creating, setCreating] = useState(false);
+  const [error, setError] = useState("");
+  const [expDate, setExpDate] = useState("");
 
   const [title, setTitle] = useState("");
   const [recorder, setRecorder] = useState("");
@@ -42,11 +46,13 @@ export default function ExperimentsPage() {
       setLoading(true);
       try {
         const [expRes, tagRes] = await Promise.all([fetch("/api/experiments"), fetch("/api/tags")]);
-        const expData = expRes.ok ? ((await expRes.json()) as Experiment[]) : [];
-        const tagData = tagRes.ok ? ((await tagRes.json()) as Tag[]) : [];
+        if (!expRes.ok || !tagRes.ok) throw new Error("读取失败");
+        const expData = (await expRes.json()) as Experiment[];
+        const tagData = (await tagRes.json()) as Tag[];
         setExperiments(expData);
         setTags(tagData);
-      } finally {
+      } catch { setError("实验记录读取失败，请刷新重试。"); }
+      finally {
         setLoading(false);
       }
     }
@@ -71,24 +77,25 @@ export default function ExperimentsPage() {
     event.preventDefault();
     if (creating) return;
     setCreating(true);
+    setError("");
     try {
-      const today = new Date().toISOString().split("T")[0];
       const response = await fetch("/api/experiments", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           title,
           recorder,
-          expDate: today,
+          expDate,
           summary,
           tagIds: selectedCreateTagIds,
         }),
       });
 
-      if (!response.ok) return;
+      if (!response.ok) throw new Error("创建失败");
       const created = (await response.json()) as Experiment;
       router.push(`/experiments/${created.id}`);
-    } finally {
+    } catch { setError("创建失败，输入内容已保留，请重试。"); }
+    finally {
       setCreating(false);
     }
   }
@@ -96,9 +103,11 @@ export default function ExperimentsPage() {
   async function handleDeleteExperiment(id: number) {
     const ok = window.confirm("确认删除这条实验记录？");
     if (!ok) return;
-    const response = await fetch(`/api/experiments/${id}`, { method: "DELETE" });
-    if (!response.ok) return;
-    setExperiments((prev) => prev.filter((item) => item.id !== id));
+    try {
+      const response = await fetch(`/api/experiments/${id}`, { method: "DELETE" });
+      if (!response.ok) throw new Error("删除失败");
+      setExperiments((prev) => prev.filter((item) => item.id !== id));
+    } catch { setError("删除失败，请重试。"); }
   }
 
   async function handleCreateTag() {
@@ -110,12 +119,13 @@ export default function ExperimentsPage() {
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ name: newTagName.trim(), color: newTagColor }),
       });
-      if (!response.ok) return;
+      if (!response.ok) throw new Error("标签创建失败");
       const created = (await response.json()) as Tag;
       setTags((prev) => [...prev, created]);
       setSelectedCreateTagIds((prev) => [...prev, created.id]);
       setNewTagName("");
-    } finally {
+    } catch { setError("标签创建失败，请重试。"); }
+    finally {
       setCreatingTag(false);
     }
   }
@@ -124,7 +134,8 @@ export default function ExperimentsPage() {
     <div className="min-h-screen bg-[#f6f8fc] text-[#2e3e61]">
       <TopNav />
       <main className="mx-auto w-full max-w-[1500px] px-4 pb-12 pt-6 sm:px-6">
-        <section className="rounded-2xl border border-[#dbe5f7] bg-white px-6 py-5">
+        {error && !showCreate ? <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{error}</p> : null}
+        <section className="min-w-0 rounded-2xl border border-[#dbe5f7] bg-white px-4 py-5 sm:px-6">
           <div className="mb-5 flex flex-wrap items-center justify-between gap-3 border-b border-[#d9e2f2] pb-4">
             <div>
               <h1 className="text-2xl font-semibold text-[#365fae]">实验记录</h1>
@@ -132,7 +143,7 @@ export default function ExperimentsPage() {
             </div>
             <button
               type="button"
-              onClick={() => setShowCreate(true)}
+              onClick={() => { setExpDate(localDate()); setError(""); setShowCreate(true); }}
               className="rounded-full border border-[#8ba6da] bg-[#4f78c8] px-5 py-2 text-sm font-medium text-white transition hover:bg-[#416abd]"
             >
               新建实验
@@ -170,7 +181,24 @@ export default function ExperimentsPage() {
             ) : null}
           </div>
 
-          <div className="overflow-x-auto">
+          <div className="space-y-3 md:hidden">
+            {loading ? <p className="py-6 text-center text-sm text-[#8aa0c9]">加载中…</p> : null}
+            {!loading && filteredExperiments.length === 0 ? <p className="py-6 text-center text-sm text-[#8aa0c9]">暂无实验记录</p> : null}
+            {!loading && filteredExperiments.map(exp => (
+              <article key={exp.id} className="min-w-0 rounded-xl border border-[#dbe5f7] bg-[#fbfdff] p-4">
+                <p className="mb-2 text-xs text-[#6280b9]">{exp.expDate} · {exp.recorder}</p>
+                <h2 className="break-words text-base font-semibold leading-7 text-[#35579b]"><Link href={`/experiments/${exp.id}?mode=preview`}>{exp.title}</Link></h2>
+                <p className="mt-2 line-clamp-3 break-words text-sm leading-6 text-[#4f648e]">{exp.summary}</p>
+                <div className="mt-3 flex flex-wrap gap-2">{exp.tags.map(tag => <span key={tag.id} className="rounded-full border px-2 py-1 text-xs" style={{ borderColor: tag.color, color: tag.color }}>{tag.name}</span>)}</div>
+                <div className="mt-3 flex flex-wrap gap-2 border-t border-[#e1e9f8] pt-3">
+                  <Link href={`/experiments/${exp.id}?mode=preview`} className="flex min-h-10 items-center rounded-full border border-[#d7e2f7] px-4 text-sm text-[#365fae]">查看</Link>
+                  <Link href={`/experiments/${exp.id}`} className="flex min-h-10 items-center rounded-full border border-[#d7e2f7] px-4 text-sm text-[#6f84ad]">编辑</Link>
+                  <button type="button" onClick={() => handleDeleteExperiment(exp.id)} className="min-h-10 rounded-full border border-[#f1d5d5] px-4 text-sm text-[#c06f6f]">删除</button>
+                </div>
+              </article>
+            ))}
+          </div>
+          <div className="hidden overflow-x-auto md:block">
             <table className="w-full min-w-[760px] border-separate border-spacing-0 text-sm">
               <thead>
                 <tr className="text-left text-xs uppercase tracking-wider text-[#7a8fb8]">
@@ -213,7 +241,7 @@ export default function ExperimentsPage() {
                           {exp.tags.map((tag) => (
                             <span
                               key={tag.id}
-                              className="rounded-full border px-2 py-0.5 text-xs"
+                              className="rounded-full border min-h-10 px-3 py-1.5 text-xs"
                               style={{ borderColor: tag.color, color: tag.color }}
                             >
                               {tag.name}
@@ -225,14 +253,14 @@ export default function ExperimentsPage() {
                         <div className="flex gap-1">
                           <Link
                             href={`/experiments/${exp.id}`}
-                            className="rounded-full border border-[#d7e2f7] px-2 py-0.5 text-xs text-[#6f84ad] hover:bg-[#f3f7ff]"
+                            className="rounded-full border border-[#d7e2f7] min-h-10 px-3 py-1.5 text-xs text-[#6f84ad] hover:bg-[#f3f7ff]"
                           >
                             编辑
                           </Link>
                           <button
                             type="button"
                             onClick={() => handleDeleteExperiment(exp.id)}
-                            className="rounded-full border border-[#f1d5d5] px-2 py-0.5 text-xs text-[#c06f6f] hover:bg-[#fff4f4]"
+                            className="rounded-full border border-[#f1d5d5] min-h-10 px-3 py-1.5 text-xs text-[#c06f6f] hover:bg-[#fff4f4]"
                           >
                             删除
                           </button>
@@ -247,19 +275,14 @@ export default function ExperimentsPage() {
       </main>
 
       {showCreate ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#1f2d4a]/25 px-4">
-          <div className="w-full max-w-xl rounded-2xl border border-[#d2ddf4] bg-white p-5 shadow-[0_20px_45px_rgba(68,98,160,0.25)]">
-            <div className="mb-4 flex items-center justify-between border-b border-[#d9e2f2] pb-3">
-              <h2 className="text-lg font-semibold text-[#365fae]">新建实验</h2>
-              <button
-                type="button"
-                onClick={() => setShowCreate(false)}
-                className="rounded-full border border-[#bfd0ee] px-3 py-1 text-xs text-[#6f84ad]"
-              >
-                关闭
-              </button>
-            </div>
+        <Modal title="新建实验" onClose={() => { if (!creating) setShowCreate(false); }}>
             <form onSubmit={handleCreate} className="space-y-3">
+              {error ? <p role="alert" className="text-sm text-red-700">{error}</p> : null}
+              <fieldset disabled={creating} className="min-w-0 space-y-3">
+              <div>
+                <label htmlFor="experiment-date" className="mb-1 block text-xs text-[#6a85bc]">实验日期</label>
+                <input id="experiment-date" type="date" required value={expDate} onChange={event => setExpDate(event.target.value)} className="w-full rounded-xl border border-[#bfd0ee] px-3 py-2 text-sm" />
+              </div>
               <div>
                 <label className="mb-1 block text-xs text-[#6a85bc]">实验标题</label>
                 <input
@@ -353,9 +376,9 @@ export default function ExperimentsPage() {
                   {creating ? "创建中..." : "创建并进入编辑"}
                 </button>
               </div>
+              </fieldset>
             </form>
-          </div>
-        </div>
+        </Modal>
       ) : null}
     </div>
   );

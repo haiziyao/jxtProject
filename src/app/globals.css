@@ -11,3 +11,32 @@ body {
   background: #f6f8fc;
   color: #2e3e61;
 }
+
+@layer base {
+  input:not([type="color"]):not([type="checkbox"]), textarea, select {
+    min-width: 0;
+    max-width: 100%;
+  }
+  button, a, input, textarea, select {
+    -webkit-tap-highlight-color: transparent;
+  }
+  :focus-visible {
+    outline: 2px solid #4f78c8;
+    outline-offset: 3px;
+  }
+}
+
+.markdown-body {
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.markdown-body img { max-width: 100%; height: auto; }
+.markdown-body pre, .markdown-body table { max-width: 100%; overflow-x: auto; }
+.bytemd-toolbar { overflow-x: auto; }
+
+@media (max-width: 767px) {
+  input:not([type="color"]), textarea, select { font-size: 16px !important; }
+  .bytemd-preview { padding: 16px; }
+  .bytemd-toolbar-left, .bytemd-toolbar-right { white-space: nowrap; }
+  .bytemd-toolbar-icon { padding: 7px; }
+}

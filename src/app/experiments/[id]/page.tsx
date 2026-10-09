@@ -1,13 +1,15 @@
 "use client";
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
+import Image from "next/image";
 import { Editor, Viewer } from "@bytemd/react";
 import gfm from "@bytemd/plugin-gfm";
 import breaks from "@bytemd/plugin-breaks";
 import frontmatter from "@bytemd/plugin-frontmatter";
 import highlight from "@bytemd/plugin-highlight";
 import mediumZoom from "@bytemd/plugin-medium-zoom";
+import { inlineImageUrl } from "@/lib/storage-url";
 
 type Tag = {
   id: number;
@@ -29,6 +31,8 @@ type ExperimentDetail = {
   summary: string;
   tags: Tag[];
   notes: Note[];
+  images: { id: number; imageUrl: string; sortOrder: number }[];
+  storageBaseUrl: string;
 };
 
 type EditorUploadImage = {
@@ -54,21 +58,17 @@ async function uploadFile(file: File) {
   return data.url;
 }
 
-function serializeBodyMarkdown(markdown: string) {
-  return `${BODY_MARKDOWN_PREFIX}${markdown}`;
-}
-
 function buildInlineProxyUrl(fileUrl: string) {
   if (!fileUrl) return fileUrl;
   if (fileUrl.startsWith("/api/files/proxy?")) return fileUrl;
   return `/api/files/proxy?url=${encodeURIComponent(fileUrl)}`;
 }
 
-function normalizeMarkdownImageUrls(markdown: string) {
+function normalizeMarkdownImageUrls(markdown: string, baseUrl: string) {
   if (!markdown) return markdown;
   return markdown.replace(/!\[([^\]]*)\]\(([^)\s]+)(?:\s+"[^"]*")?\)/g, (full, altText: string, rawUrl: string) => {
     if (rawUrl.startsWith("data:")) return full;
-    const normalized = buildInlineProxyUrl(rawUrl);
+    const normalized = inlineImageUrl(rawUrl, baseUrl);
     return `![${altText}](${normalized})`;
   });
 }
@@ -99,6 +99,15 @@ export default function ExperimentDetailPage({ params }: { params: { id: string 
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
   const [error, setError] = useState("");
+  const [loaded, setLoaded] = useState(false);
+  const [saved, setSaved] = useState(false);
+  const [smallScreen, setSmallScreen] = useState(false);
+  const [mobilePreview, setMobilePreview] = useState(false);
+  const [remarks, setRemarks] = useState<Note[]>([]);
+  const savePending = useRef(false);
+  const bodyCurrent = useRef("");
+  const storageBase = useRef("");
+  const [images, setImages] = useState<ExperimentDetail["images"]>([]);
 
   const [title, setTitle] = useState("");
   const [recorder, setRecorder] = useState("");
@@ -110,11 +119,20 @@ export default function ExperimentDetailPage({ params }: { params: { id: string 
   const [bodyMarkdown, setBodyMarkdown] = useState("");
 
   useEffect(() => {
+    const media = window.matchMedia("(max-width: 767px)");
+    const update = () => setSmallScreen(media.matches);
+    update();
+    media.addEventListener("change", update);
+    return () => media.removeEventListener("change", update);
+  }, []);
+
+  useEffect(() => {
+    const controller = new AbortController();
     async function load() {
       setLoading(true);
       setError("");
       try {
-        const detailRes = await fetch(`/api/experiments/${experimentId}`);
+        const detailRes = await fetch(`/api/experiments/${experimentId}`, { signal: controller.signal, cache: "no-store" });
 
         if (!detailRes.ok) {
           throw new Error("load detail failed");
@@ -122,34 +140,43 @@ export default function ExperimentDetailPage({ params }: { params: { id: string 
 
         const detail = (await detailRes.json()) as ExperimentDetail;
 
+        storageBase.current = detail.storageBaseUrl;
+        setImages(detail.images || []);
         const parsed = resolveBodyAndRemarks(detail.notes || []);
+        setRemarks(parsed.remarks);
         setBodyNoteId(parsed.bodyNoteId);
-        setBodyMarkdown(normalizeMarkdownImageUrls(parsed.bodyMarkdown));
+        bodyCurrent.current = normalizeMarkdownImageUrls(parsed.bodyMarkdown, storageBase.current);
+        setBodyMarkdown(bodyCurrent.current);
 
         setTitle(detail.title);
         setRecorder(detail.recorder);
         setExpDate(detail.expDate);
         setSummary(detail.summary);
         setSelectedTagIds((detail.tags || []).map((tag) => tag.id));
+        setLoaded(true);
       } catch {
-        setError("加载实验记录失败，请刷新后重试。");
+        if (!controller.signal.aborted) setError("加载实验记录失败，请刷新后重试。");
       } finally {
-        setLoading(false);
+        if (!controller.signal.aborted) setLoading(false);
       }
     }
 
-    if (Number.isFinite(experimentId)) {
+    if (Number.isSafeInteger(experimentId) && experimentId > 0) {
       load();
     } else {
       setError("实验记录 ID 无效");
       setLoading(false);
     }
+    return () => controller.abort();
   }, [experimentId]);
 
   async function handleSave() {
-    if (saving) return;
+    if (savePending.current) return;
+    savePending.current = true;
     setSaving(true);
     setError("");
+    setSaved(false);
+    const submittedBody = bodyMarkdown;
     try {
       const updateRes = await fetch(`/api/experiments/${experimentId}`, {
         method: "PUT",
@@ -160,38 +187,22 @@ export default function ExperimentDetailPage({ params }: { params: { id: string 
           expDate,
           summary: summary.trim(),
           tagIds: selectedTagIds,
+          bodyMarkdown,
+          bodyNoteId,
         }),
       });
       if (!updateRes.ok) {
         throw new Error("update failed");
       }
 
-      const bodyContent = serializeBodyMarkdown(bodyMarkdown);
-      if (bodyNoteId) {
-        const bodyUpdateRes = await fetch(`/api/experiments/${experimentId}/notes/${bodyNoteId}`, {
-          method: "PUT",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: bodyContent }),
-        });
-        if (!bodyUpdateRes.ok) {
-          throw new Error("update body failed");
-        }
-      } else {
-        const createBodyRes = await fetch(`/api/experiments/${experimentId}/notes`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ content: bodyContent }),
-        });
-        if (!createBodyRes.ok) {
-          throw new Error("create body failed");
-        }
-        const created = (await createBodyRes.json()) as Note;
-        setBodyNoteId(created.id);
-      }
+      const result = await updateRes.json() as { bodyNoteId: number };
+      setBodyNoteId(result.bodyNoteId);
+      setSaved(bodyCurrent.current === submittedBody);
     } catch {
-      setError("保存失败，请稍后重试。");
+      setError("保存失败，编辑内容已保留，请稍后重试。");
     } finally {
       setSaving(false);
+      savePending.current = false;
     }
   }
 
@@ -219,7 +230,7 @@ export default function ExperimentDetailPage({ params }: { params: { id: string 
     );
   }
 
-  if (error) {
+  if (error && !loaded) {
     return (
       <div className="flex min-h-screen flex-col items-center justify-center gap-4 bg-[#f6f8fc] text-[#5473b5]">
         <p>{error}</p>
@@ -237,7 +248,7 @@ export default function ExperimentDetailPage({ params }: { params: { id: string 
   return (
     <div className="min-h-screen bg-[#f6f8fc] text-[#2e3e61]">
       <header className="sticky top-0 z-40 border-b border-[#d8e2f7] bg-white/95 backdrop-blur">
-        <div className="flex h-14 items-center justify-between px-4 sm:px-6">
+        <div className="flex min-h-14 items-center justify-between gap-2 px-3 py-2 sm:px-6">
           <button
             type="button"
             onClick={gotoList}
@@ -277,21 +288,44 @@ export default function ExperimentDetailPage({ params }: { params: { id: string 
       </header>
 
       <main className="w-full">
+        {error ? <p role="alert" className="bg-red-50 px-4 py-3 text-sm text-red-700">{error}</p> : null}
+        {saved ? <p role="status" className="bg-green-50 px-4 py-2 text-sm text-green-700">已保存</p> : null}
+        <section className="border-b border-[#dde7f8] bg-white px-4 py-4 sm:px-6">
+          <h1 className="break-words text-lg font-semibold text-[#365fae]">{title}</h1>
+          <p className="mt-2 text-sm text-[#6f84ad]">{expDate} · {recorder}</p>
+          {isPreviewMode ? <p className="mt-2 break-words text-sm leading-6">{summary}</p> : (
+            <details className="mt-3">
+              <summary className="min-h-10 cursor-pointer py-2 text-sm text-[#4268b1]">编辑标题、日期和简介</summary>
+              <fieldset disabled={saving} className="mt-2 grid min-w-0 gap-3 sm:grid-cols-2">
+                <label className="text-sm">标题<input required maxLength={200} value={title} onChange={event => setTitle(event.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>
+                <label className="text-sm">记录人<input required maxLength={50} value={recorder} onChange={event => setRecorder(event.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>
+                <label className="text-sm">实验日期<input required type="date" value={expDate} onChange={event => setExpDate(event.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>
+                <label className="text-sm sm:col-span-2">简介<textarea required rows={3} value={summary} onChange={event => setSummary(event.target.value)} className="mt-1 w-full rounded-lg border p-2" /></label>
+              </fieldset>
+            </details>
+          )}
+        </section>
         {!isPreviewMode ? (
           <>
             <section className="px-0 py-0 sm:px-0">
-              <div className="border-b border-[#dde7f8] px-4 py-2 text-sm font-semibold text-[#365fae] sm:px-6">
-                正文编辑（Markdown）
+              <div className="flex flex-wrap items-center justify-between gap-2 border-b border-[#dde7f8] px-4 py-2 text-sm font-semibold text-[#365fae] sm:px-6">
+                <span>正文编辑（Markdown）</span>
+                <div className="flex gap-2 md:hidden">
+                  <button type="button" aria-pressed={!mobilePreview} onClick={() => setMobilePreview(false)} className="min-h-10 rounded-full border px-3">编写</button>
+                  <button type="button" aria-pressed={mobilePreview} onClick={() => setMobilePreview(true)} className="min-h-10 rounded-full border px-3">预览</button>
+                </div>
               </div>
-              <div className="h-[calc(100vh-56px)] min-h-[560px] bg-white [&_.bytemd]:h-full [&_.bytemd]:border-0 [&_.bytemd-preview]:bg-white [&_.bytemd-preview]:px-6 [&_.bytemd-status]:border-t [&_.bytemd-toolbar]:border-b">
+              <div className="min-w-0 bg-white [&_.bytemd]:h-[65dvh] [&_.bytemd]:min-h-[360px] [&_.bytemd]:border-0 [&_.bytemd-preview]:bg-white [&_.bytemd-status]:border-t [&_.bytemd-toolbar]:border-b">
+                {smallScreen && mobilePreview ? <div className="min-h-[360px] p-4"><Viewer value={bodyMarkdown || "_暂无正文内容_"} plugins={mdPlugins} /></div> : (
                 <Editor
                   value={bodyMarkdown}
-                  mode="split"
+                  mode={smallScreen ? "tab" : "split"}
                   plugins={mdPlugins}
                   uploadImages={uploadEditorImages}
-                  onChange={setBodyMarkdown}
+                  onChange={value => { bodyCurrent.current = value; setBodyMarkdown(value); setSaved(false); }}
                   placeholder="在这里编写正文内容，支持图片、表格、代码块、任务列表..."
                 />
+                )}
               </div>
             </section>
           </>
@@ -299,12 +333,14 @@ export default function ExperimentDetailPage({ params }: { params: { id: string 
           <section className="px-4 py-6 sm:px-6">
             <div className="border border-[#dbe5f7] bg-white p-5">
               <h2 className="mb-3 text-lg font-semibold text-[#365fae]">正文预览</h2>
-              <div className="[&_.bytemd-preview]:max-w-none [&_.markdown-body]:font-serif">
+              <div className="min-w-0 [&_.bytemd-preview]:max-w-none [&_.markdown-body]:font-serif">
                 <Viewer value={bodyMarkdown || "_暂无正文内容_"} plugins={mdPlugins} />
               </div>
             </div>
           </section>
         )}
+        {images.length > 0 ? <section className="px-4 py-5 sm:px-6"><h2 className="mb-3 text-lg font-semibold">实验图片</h2><div className="grid min-w-0 gap-4 sm:grid-cols-2">{images.map((image, index) => <a key={image.id} href={inlineImageUrl(image.imageUrl, storageBase.current)} target="_blank" rel="noreferrer" className="min-w-0 rounded-xl border bg-white p-3"><Image unoptimized width={1200} height={800} src={inlineImageUrl(image.imageUrl, storageBase.current)} alt={`实验图片 ${index + 1}`} loading="lazy" className="h-auto max-w-full rounded-lg" /></a>)}</div></section> : null}
+        {remarks.length > 0 ? <section className="px-4 py-5 sm:px-6"><h2 className="mb-3 text-lg font-semibold">其他实验笔记</h2>{remarks.map(note => <div key={note.id} className="mb-3 min-w-0 rounded-xl border bg-white p-4"><Viewer value={normalizeMarkdownImageUrls(note.content, storageBase.current)} plugins={mdPlugins} /></div>)}</section> : null}
       </main>
     </div>
   );

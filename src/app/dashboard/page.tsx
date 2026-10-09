@@ -2,12 +2,9 @@
 
 import { ChangeEvent, FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { TopNav } from "@/components/top-nav";
-import {
-  loadTodosFromStorage,
-  saveTodosToStorage,
-  TodoItem,
-  TodoLevel,
-} from "@/lib/todo-store";
+import { Modal } from "@/components/modal";
+import { useTodos } from "@/lib/use-todos";
+import { TodoLevel } from "@/lib/todo-store";
 
 type ProjectSection = {
   id: number;
@@ -23,14 +20,12 @@ type Attachment = {
   fileSize: string | null;
 };
 
-const PROGRESS_STORAGE_KEY = "dashboard_progress_steps_v3";
-const META_STORAGE_KEY = "dashboard_project_meta_v1";
-const DEFAULT_STEPS = ["完成任务1", "任务2", "任务3", "总结归档"];
-const DEFAULT_META = {
-  projectName: "避雷器高性能高电位梯度氧化锌\n压敏电阻片的研发和应用",
-  teamMembers: "张三\n李四\n王五\n赵六\n钱七",
-  advisors: "指导老师A\n指导老师B",
+const DEFAULT_STEPS: string[] = [];
+type ProjectPeople = {
+  members: { id: number; name: string; className: string | null; phone: string | null; studentNo: string | null }[];
+  advisors: { id: number; name: string; contact: string | null }[];
 };
+const DEFAULT_META = { projectName: "", teamMembers: "", advisors: "" };
 function buildProxyPreviewUrl(fileUrl: string) {
   return `/api/files/proxy?url=${encodeURIComponent(fileUrl)}`;
 }
@@ -63,7 +58,11 @@ function canPreview(url: string) {
 export default function DashboardPage() {
   const [sections, setSections] = useState<ProjectSection[]>([]);
   const [attachments, setAttachments] = useState<Attachment[]>([]);
+  const [people, setPeople] = useState<ProjectPeople>({ members: [], advisors: [] });
+  const [peopleError, setPeopleError] = useState("");
   const [loading, setLoading] = useState(true);
+  const [experimentCount, setExperimentCount] = useState(0);
+  const [thisWeekAdded, setThisWeekAdded] = useState(0);
 
   const [introEditing, setIntroEditing] = useState(false);
   const [introDraft, setIntroDraft] = useState("");
@@ -75,7 +74,13 @@ export default function DashboardPage() {
   const [metaEditing, setMetaEditing] = useState(false);
   const [projectMeta, setProjectMeta] = useState(DEFAULT_META);
   const [metaDraft, setMetaDraft] = useState(DEFAULT_META);
-  const [todos, setTodos] = useState<TodoItem[]>([]);
+  const { todos, loading: todosLoading, saving: todosSaving, error: todosError, updateTodos } = useTodos();
+  const [pageError, setPageError] = useState("");
+  const [settingsLoading, setSettingsLoading] = useState(true);
+  const [settingsLoaded, setSettingsLoaded] = useState(false);
+  const [projectDataLoaded, setProjectDataLoaded] = useState(false);
+  const [settingsSaving, setSettingsSaving] = useState(false);
+  const settingsPending = useRef(false);
   const [uploadingFile, setUploadingFile] = useState(false);
   const [todoModalOpen, setTodoModalOpen] = useState(false);
   const [suggestionTitle, setSuggestionTitle] = useState("");
@@ -85,36 +90,55 @@ export default function DashboardPage() {
   const fileInputRef = useRef<HTMLInputElement | null>(null);
 
   useEffect(() => {
-    const stored = window.localStorage.getItem(PROGRESS_STORAGE_KEY);
-    if (!stored) return;
-    try {
-      const parsed = JSON.parse(stored) as string[];
-      if (Array.isArray(parsed) && parsed.length > 0) {
-        setProgressSteps(parsed);
-        setProgressDraft(parsed.join("\n"));
-      }
-    } catch {
-      // ignore malformed cache
+    async function restoreDatabaseSettings() {
+      try {
+        const [settingsRes, recordsRes] = await Promise.all([
+          fetch("/api/dashboard/settings", { cache: "no-store" }),
+          fetch("/api/experiments", { cache: "no-store" }),
+        ]);
+        if (!settingsRes.ok || !recordsRes.ok) throw new Error("读取失败");
+        const settings = await settingsRes.json();
+        const meta = { projectName: settings.projectName, teamMembers: settings.teamMembers, advisors: settings.advisors };
+        setProjectMeta(meta);
+        setMetaDraft(meta);
+        setSettingsLoaded(true);
+        setProgressSteps(settings.progressSteps);
+        setProgressDraft(settings.progressSteps.join("\n"));
+        const records = await recordsRes.json() as { createdAt: string }[];
+        setExperimentCount(records.length);
+        const now = new Date();
+        now.setHours(0, 0, 0, 0);
+        now.setDate(now.getDate() - (now.getDay() + 6) % 7);
+        setThisWeekAdded(records.filter(record => new Date(record.createdAt) >= now).length);
+      } catch { setPageError("项目设置或实验记录读取失败，请刷新重试。"); }
+      finally { setSettingsLoading(false); }
     }
+    restoreDatabaseSettings();
   }, []);
 
   useEffect(() => {
-    setTodos(loadTodosFromStorage());
+    const controller = new AbortController();
+    fetch("/api/project/people", { cache: "no-store", signal: controller.signal })
+      .then(response => { if (!response.ok) throw new Error("读取失败"); return response.json(); })
+      .then(setPeople)
+      .catch(() => { if (!controller.signal.aborted) setPeopleError("成员资料读取失败，请刷新重试。"); });
+    return () => controller.abort();
   }, []);
 
-  useEffect(() => {
-    const stored = window.localStorage.getItem(META_STORAGE_KEY);
-    if (!stored) return;
+  async function persistSettings(value: Partial<typeof DEFAULT_META> & { progressSteps?: string[] }) {
+    if (settingsPending.current || settingsLoading || !settingsLoaded) return false;
+    settingsPending.current = true;
+    setSettingsSaving(true);
+    setPageError("");
     try {
-      const parsed = JSON.parse(stored) as typeof DEFAULT_META;
-      if (parsed?.projectName && parsed?.teamMembers && parsed?.advisors) {
-        setProjectMeta(parsed);
-        setMetaDraft(parsed);
-      }
-    } catch {
-      // ignore malformed cache
-    }
-  }, []);
+      const response = await fetch("/api/dashboard/settings", {
+        method: "PUT", headers: { "Content-Type": "application/json" }, body: JSON.stringify(value),
+      });
+      if (!response.ok) throw new Error("保存失败");
+      return true;
+    } catch { setPageError("项目设置保存失败，输入内容已保留，请重试。"); return false; }
+    finally { settingsPending.current = false; setSettingsSaving(false); }
+  }
 
   useEffect(() => {
     async function loadData() {
@@ -124,12 +148,15 @@ export default function DashboardPage() {
           fetch("/api/project/sections"),
           fetch("/api/project/attachments"),
         ]);
-        const sectionsData = sectionsRes.ok ? ((await sectionsRes.json()) as ProjectSection[]) : [];
-        const attachmentsData = attachmentsRes.ok ? ((await attachmentsRes.json()) as Attachment[]) : [];
+        if (!sectionsRes.ok || !attachmentsRes.ok) throw new Error("读取失败");
+        const sectionsData = (await sectionsRes.json()) as ProjectSection[];
+        const attachmentsData = (await attachmentsRes.json()) as Attachment[];
         setSections(sectionsData);
         setAttachments(attachmentsData);
         setIntroDraft(sectionsData[0]?.content ?? "");
-      } finally {
+        setProjectDataLoaded(true);
+      } catch { setPageError("项目说明或附件读取失败，请刷新重试。"); }
+      finally {
         setLoading(false);
       }
     }
@@ -138,16 +165,9 @@ export default function DashboardPage() {
   }, []);
 
   const introSection = useMemo(() => sections[0], [sections]);
-  const experimentCount = useMemo(() => attachments.length + sections.length * 2, [attachments.length, sections.length]);
-  const thisWeekAdded = useMemo(() => Math.max(attachments.length, 1), [attachments.length]);
-  const activePeople = useMemo(() => Math.max(Math.min(progressSteps.length + 1, 7), 1), [progressSteps.length]);
+  const activePeople = useMemo(() => projectMeta.teamMembers.split("\n").filter(line => line.trim()).length, [projectMeta.teamMembers]);
   const activeTodos = useMemo(() => todos.filter((item) => !item.deletedAt), [todos]);
   const todoCount = useMemo(() => activeTodos.filter((item) => !item.done).length, [activeTodos]);
-
-  function updateTodos(next: TodoItem[]) {
-    setTodos(next);
-    saveTodosToStorage(next);
-  }
 
   async function saveIntro(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -155,7 +175,7 @@ export default function DashboardPage() {
     setSavingIntro(true);
     try {
       if (introSection) {
-        await fetch(`/api/project/sections/${introSection.id}`, {
+        const response = await fetch(`/api/project/sections/${introSection.id}`, {
           method: "PUT",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
@@ -164,6 +184,7 @@ export default function DashboardPage() {
             sortOrder: introSection.sortOrder,
           }),
         });
+        if (!response.ok) throw new Error("保存失败");
         setSections((prev) => prev.map((item) => (item.id === introSection.id ? { ...item, content: introDraft } : item)));
       } else {
         const response = await fetch("/api/project/sections", {
@@ -175,38 +196,38 @@ export default function DashboardPage() {
             sortOrder: 0,
           }),
         });
-        if (response.ok) {
-          const created = (await response.json()) as ProjectSection;
-          setSections([created]);
-        }
+        if (!response.ok) throw new Error("保存失败");
+        const created = (await response.json()) as ProjectSection;
+        setSections([created]);
       }
       setIntroEditing(false);
-    } finally {
+    } catch { setPageError("项目说明保存失败，输入内容已保留，请重试。"); }
+    finally {
       setSavingIntro(false);
     }
   }
 
-  function saveProgress() {
+  async function saveProgress() {
     const next = progressDraft
       .split("\n")
       .map((line) => line.trim())
       .filter(Boolean);
     const resolved = next.length > 0 ? next : DEFAULT_STEPS;
+    if (!(await persistSettings({ progressSteps: resolved }))) return;
     setProgressSteps(resolved);
     setProgressDraft(resolved.join("\n"));
-    window.localStorage.setItem(PROGRESS_STORAGE_KEY, JSON.stringify(resolved));
     setProgressEditing(false);
   }
 
-  function saveMeta() {
+  async function saveMeta() {
     const resolved = {
-      projectName: metaDraft.projectName.trim() || DEFAULT_META.projectName,
-      teamMembers: metaDraft.teamMembers.trim() || DEFAULT_META.teamMembers,
-      advisors: metaDraft.advisors.trim() || DEFAULT_META.advisors,
+      projectName: metaDraft.projectName.trim() || projectMeta.projectName,
+      teamMembers: metaDraft.teamMembers.trim(),
+      advisors: metaDraft.advisors.trim(),
     };
+    if (!(await persistSettings(resolved))) return;
     setProjectMeta(resolved);
     setMetaDraft(resolved);
-    window.localStorage.setItem(META_STORAGE_KEY, JSON.stringify(resolved));
     setMetaEditing(false);
   }
 
@@ -232,7 +253,7 @@ export default function DashboardPage() {
       });
 
       if (!uploadRes.ok) {
-        return;
+        throw new Error("上传失败");
       }
 
       const uploadData = (await uploadRes.json()) as { url: string };
@@ -246,11 +267,11 @@ export default function DashboardPage() {
         }),
       });
 
-      if (attachRes.ok) {
-        const created = (await attachRes.json()) as Attachment;
-        setAttachments((prev) => [created, ...prev]);
-      }
-    } finally {
+      if (!attachRes.ok) throw new Error("登记失败");
+      const created = (await attachRes.json()) as Attachment;
+      setAttachments((prev) => [created, ...prev]);
+    } catch { setPageError("附件上传失败，请重试。"); }
+    finally {
       setUploadingFile(false);
       if (fileInputRef.current) {
         fileInputRef.current.value = "";
@@ -259,14 +280,15 @@ export default function DashboardPage() {
   }
 
   async function handleDeleteFile(fileId: number) {
-    const response = await fetch(`/api/project/attachments/${fileId}`, {
-      method: "DELETE",
-    });
-    if (!response.ok) return;
-    setAttachments((prev) => prev.filter((item) => item.id !== fileId));
+    if (!window.confirm("确认删除这个项目附件？")) return;
+    try {
+      const response = await fetch(`/api/project/attachments/${fileId}`, { method: "DELETE" });
+      if (!response.ok) throw new Error("删除失败");
+      setAttachments((prev) => prev.filter((item) => item.id !== fileId));
+    } catch { setPageError("附件删除失败，请重试。"); }
   }
 
-  function submitSuggestion(event: FormEvent<HTMLFormElement>) {
+  async function submitSuggestion(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (!suggestionTitle.trim() || !suggestionDetail.trim() || !suggestionDueDate) return;
     const next = [
@@ -282,7 +304,7 @@ export default function DashboardPage() {
       },
       ...todos,
     ];
-    updateTodos(next);
+    if (!(await updateTodos(next))) return;
     setSuggestionTitle("");
     setSuggestionLevel("medium");
     setSuggestionDueDate("");
@@ -295,12 +317,14 @@ export default function DashboardPage() {
       <TopNav onCreateTodoToolClick={() => setTodoModalOpen(true)} />
 
       <main className="mx-auto w-full max-w-[1500px] px-4 pb-12 pt-6 sm:px-6">
+        {pageError ? <p role="alert" className="mb-4 rounded-xl bg-red-50 p-3 text-sm text-red-700">{pageError}</p> : null}
         <div className="grid gap-6 lg:grid-cols-[260px_minmax(0,1fr)_330px]">
-          <aside className="rounded-2xl border border-[#d5e0f6] bg-[#edf3ff] p-5 lg:sticky lg:top-24 lg:h-fit">
+          <aside className="min-w-0 rounded-2xl border border-[#d5e0f6] bg-[#edf3ff] p-5 lg:sticky lg:top-24 lg:h-fit">
             <div className="mb-4 flex items-center justify-between border-b border-[#d2def5] pb-3">
               <p className="text-xs uppercase tracking-[0.2em] text-[#6a85bc]">基础信息</p>
               <button
                 type="button"
+                disabled={!settingsLoaded || settingsLoading || settingsSaving}
                 onClick={() => setMetaEditing((prev) => !prev)}
                 className="rounded-full border border-[#9db5e5] bg-white px-3 py-1 text-xs text-[#365fae] transition hover:bg-[#e4edff]"
               >
@@ -342,6 +366,7 @@ export default function DashboardPage() {
                 <button
                   type="button"
                   onClick={saveMeta}
+                  disabled={settingsSaving}
                   className="rounded-full border border-[#8ba6da] bg-[#4f78c8] px-4 py-2 text-xs font-medium text-white transition hover:bg-[#416abd]"
                 >
                   保存基础信息
@@ -351,28 +376,49 @@ export default function DashboardPage() {
               <div className="space-y-5">
                 <div>
                   <p className="text-xs text-[#6a85bc]">项目名称</p>
-                  <h1 className="mt-2 whitespace-pre-line text-2xl leading-tight text-[#3a5fa9]">{projectMeta.projectName}</h1>
+                  <h1 className="mt-2 whitespace-pre-line break-words text-xl leading-relaxed text-[#3a5fa9] sm:text-2xl">{settingsLoading ? "基础信息加载中…" : settingsLoaded ? projectMeta.projectName : "基础信息读取失败"}</h1>
                 </div>
                 <div className="border-t border-[#d2def5]" />
                 <div>
                   <p className="text-xs text-[#6a85bc]">队伍成员</p>
-                  <p className="mt-2 whitespace-pre-line text-sm leading-7 text-[#6279a8]">{projectMeta.teamMembers}</p>
+                  <p className="mt-2 whitespace-pre-line break-words text-sm leading-7 text-[#6279a8]">{settingsLoading ? "加载中…" : projectMeta.teamMembers}</p>
                 </div>
                 <div className="border-t border-[#d2def5]" />
                 <div>
                   <p className="text-xs text-[#6a85bc]">指导老师</p>
-                  <p className="mt-2 whitespace-pre-line text-sm leading-7 text-[#6279a8]">{projectMeta.advisors}</p>
+                  <p className="mt-2 whitespace-pre-line break-words text-sm leading-7 text-[#6279a8]">{settingsLoading ? "加载中…" : projectMeta.advisors}</p>
                 </div>
               </div>
             )}
+            {peopleError ? <p role="alert" className="mt-4 text-sm text-red-700">{peopleError}</p> : null}
+            {people.members.length || people.advisors.length ? (
+              <details className="mt-5 border-t border-[#d2def5] pt-3">
+                <summary className="min-h-10 cursor-pointer py-2 text-sm font-medium text-[#365fae]">成员资料（{people.members.length} 位成员、{people.advisors.length} 位老师）</summary>
+                <div className="mt-2 space-y-3">
+                  {people.members.map(member => <div key={member.id} className="min-w-0 rounded-xl bg-white p-3 text-sm">
+                    <p className="break-words font-medium">{member.name}</p>
+                    <dl className="mt-2 space-y-1 break-words text-xs leading-5 text-[#6279a8]">
+                      <div><dt className="inline">班级：</dt><dd className="inline">{member.className || "未填写"}</dd></div>
+                      <div><dt className="inline">学号：</dt><dd className="inline">{member.studentNo || "未填写"}</dd></div>
+                      <div><dt className="inline">电话：</dt><dd className="inline">{member.phone || "未填写"}</dd></div>
+                    </dl>
+                  </div>)}
+                  {people.advisors.map(advisor => <div key={advisor.id} className="min-w-0 rounded-xl bg-white p-3 text-sm">
+                    <p className="break-words font-medium">指导老师：{advisor.name}</p>
+                    <p className="mt-2 break-words text-xs text-[#6279a8]">联系方式：{advisor.contact || "未填写"}</p>
+                  </div>)}
+                </div>
+              </details>
+            ) : null}
           </aside>
 
-          <section className="space-y-7">
-            <section id="intro" className="rounded-2xl border border-[#dbe5f7] bg-white px-6 py-5">
+          <section className="min-w-0 space-y-7">
+            <section id="intro" className="min-w-0 rounded-2xl border border-[#dbe5f7] bg-white px-4 py-5 sm:px-6">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-xl font-semibold text-[#365fae]">项目介绍</h2>
                 <button
                   type="button"
+                  disabled={!projectDataLoaded || loading || savingIntro}
                   onClick={() => setIntroEditing((prev) => !prev)}
                   className="rounded-full border border-[#9db5e5] bg-[#eff4ff] px-4 py-1.5 text-xs text-[#365fae] transition hover:bg-[#e4edff]"
                 >
@@ -398,7 +444,7 @@ export default function DashboardPage() {
                   </button>
                 </form>
               ) : (
-                <p className="min-h-[260px] whitespace-pre-line text-sm leading-8 text-[#465a84]">
+                <p className="min-h-[160px] whitespace-pre-line break-words text-sm leading-8 text-[#465a84]">
                   {loading
                     ? "项目介绍加载中..."
                     : introSection?.content || "暂无项目介绍内容，点击“编辑介绍”开始填写。"}
@@ -406,11 +452,17 @@ export default function DashboardPage() {
               )}
             </section>
 
-            <section className="rounded-2xl border border-[#dbe5f7] bg-white px-6 py-5">
+            {sections.slice(1).map(section => <section key={section.id} className="min-w-0 rounded-2xl border border-[#dbe5f7] bg-white px-4 py-5 sm:px-6">
+              <h2 className="mb-4 break-words text-xl font-semibold text-[#365fae]">{section.title}</h2>
+              <p className="whitespace-pre-line break-words text-sm leading-8 text-[#465a84]">{section.content || "暂无内容"}</p>
+            </section>)}
+
+            <section className="min-w-0 rounded-2xl border border-[#dbe5f7] bg-white px-4 py-5 sm:px-6">
               <div className="mb-4 flex items-center justify-between">
                 <h2 className="text-xl font-semibold text-[#365fae]">进度管理</h2>
                 <button
                   type="button"
+                  disabled={!settingsLoaded || settingsLoading || settingsSaving}
                   onClick={() => setProgressEditing((prev) => !prev)}
                   className="rounded-full border border-[#9db5e5] bg-[#eff4ff] px-4 py-1.5 text-xs text-[#365fae] transition hover:bg-[#e4edff]"
                 >
@@ -430,6 +482,7 @@ export default function DashboardPage() {
                   <button
                     type="button"
                     onClick={saveProgress}
+                    disabled={settingsSaving}
                     className="rounded-full border border-[#8ba6da] bg-[#4f78c8] px-5 py-2 text-xs font-medium text-white transition hover:bg-[#416abd]"
                   >
                     保存进度
@@ -440,7 +493,7 @@ export default function DashboardPage() {
                   <div className="flex min-w-max items-center gap-2 text-sm">
                     {progressSteps.map((step, index) => (
                       <div key={`${step}-${index}`} className="flex items-center gap-2">
-                        <span
+                    <span
                           className={
                             index === 0
                               ? "rounded-full border border-[#95afe0] bg-[#eaf0fd] px-4 py-1.5 text-[#355da9]"
@@ -457,7 +510,7 @@ export default function DashboardPage() {
               )}
             </section>
 
-            <section className="rounded-2xl border border-[#dbe5f7] bg-white px-6 py-5">
+            <section className="min-w-0 rounded-2xl border border-[#dbe5f7] bg-white px-4 py-5 sm:px-6">
               <h2 className="mb-4 text-xl font-semibold text-[#365fae]">实验记录统计</h2>
               <div className="grid gap-3 sm:grid-cols-3">
                 <div className="rounded-xl border border-[#cfdbf2] bg-[#fbfdff] px-3 py-3">
@@ -476,8 +529,8 @@ export default function DashboardPage() {
             </section>
           </section>
 
-          <aside className="space-y-6">
-            <section className="rounded-2xl border border-[#dbe5f7] bg-white px-5 py-5">
+          <aside className="min-w-0 space-y-6">
+            <section className="min-w-0 rounded-2xl border border-[#dbe5f7] bg-white px-5 py-5">
               <div className="mb-3 flex items-center justify-between">
                 <h2 className="text-xl font-semibold text-[#365fae]">文件区</h2>
                 <button
@@ -546,16 +599,18 @@ export default function DashboardPage() {
               ) : null}
             </section>
 
-            <section className="rounded-2xl border border-[#dbe5f7] bg-white px-5 py-5">
+            <section className="min-w-0 rounded-2xl border border-[#dbe5f7] bg-white px-5 py-5">
               <h2 className="mb-3 text-xl font-semibold text-[#365fae]">TODO 摘要</h2>
+              {todosError ? <p role="alert" className="mb-3 text-sm text-red-700">{todosError}</p> : null}
+              <fieldset disabled={todosLoading || todosSaving}>
               <ul className="space-y-2 text-sm text-[#4f648e]">
                 {activeTodos.map((todo) => (
                   <li key={todo.id} className="rounded-lg border border-[#e1e9f8] bg-[#fbfdff] px-3 py-2">
-                    <div className="flex items-center justify-between gap-2">
+                    <div className="flex flex-wrap items-center justify-between gap-2">
                       <div className="flex min-w-0 items-center gap-2">
                         <span className="relative inline-flex h-5 w-5 items-center justify-center group/urgency">
                         <span className={`h-3.5 w-3.5 rounded-full ${urgencyClass(todo.level)}`} />
-                        <span className="pointer-events-none absolute left-6 top-1/2 z-20 hidden min-w-[220px] -translate-y-1/2 rounded-lg border border-[#d9e2f2] bg-white px-3 py-2 text-xs text-[#49608f] shadow-[0_10px_20px_rgba(79,120,200,0.2)] group-hover/urgency:block">
+                        <span className="pointer-events-none absolute left-6 top-1/2 z-20 hidden w-[220px] -translate-y-1/2 break-words rounded-lg border border-[#d9e2f2] bg-white px-3 py-2 text-xs text-[#49608f] shadow-[0_10px_20px_rgba(79,120,200,0.2)] sm:group-hover/urgency:block">
                           截止日期：{todo.dueDate}
                           <br />
                           备注：{todo.detail}
@@ -569,7 +624,7 @@ export default function DashboardPage() {
                           onClick={() =>
                             updateTodos(todos.map((item) => (item.id === todo.id ? { ...item, done: !item.done } : item)))
                           }
-                          className="rounded-full border border-[#d7e2f7] px-2 py-0.5 text-xs text-[#6f84ad] hover:bg-[#f3f7ff]"
+                          className="rounded-full border border-[#d7e2f7] min-h-10 px-3 py-1.5 text-xs text-[#6f84ad] hover:bg-[#f3f7ff]"
                         >
                           {todo.done ? "撤销" : "完成"}
                         </button>
@@ -582,35 +637,28 @@ export default function DashboardPage() {
                               ),
                             )
                           }
-                          className="rounded-full border border-[#f1d5d5] px-2 py-0.5 text-xs text-[#c06f6f] hover:bg-[#fff4f4]"
+                          className="rounded-full border border-[#f1d5d5] min-h-10 px-3 py-1.5 text-xs text-[#c06f6f] hover:bg-[#fff4f4]"
                         >
                           删除
                         </button>
                       </div>
                     </div>
+                    <p className="mt-2 break-words text-xs leading-6 text-[#6f84ad] sm:hidden">截止：{todo.dueDate}<br />{todo.detail}</p>
                   </li>
                 ))}
               </ul>
               <p className="mt-3 text-xs text-[#8aa0c9]">待处理总数：{todoCount}</p>
+              </fieldset>
             </section>
           </aside>
         </div>
       </main>
 
       {todoModalOpen ? (
-        <div className="fixed inset-0 z-40 flex items-center justify-center bg-[#1f2d4a]/25 px-4">
-          <div className="w-full max-w-lg rounded-2xl border border-[#d2ddf4] bg-white p-5 shadow-[0_20px_45px_rgba(68,98,160,0.25)]">
-            <div className="mb-4 flex items-center justify-between border-b border-[#d9e2f2] pb-3">
-              <h2 className="text-lg font-semibold text-[#365fae]">创建 TODO 建议</h2>
-              <button
-                type="button"
-                onClick={() => setTodoModalOpen(false)}
-                className="rounded-full border border-[#bfd0ee] px-3 py-1 text-xs text-[#6f84ad]"
-              >
-                关闭
-              </button>
-            </div>
+        <Modal title="创建 TODO 建议" onClose={() => { if (!todosSaving) setTodoModalOpen(false); }}>
             <form onSubmit={submitSuggestion} className="space-y-3">
+              {todosError ? <p role="alert" className="text-sm text-red-700">{todosError}</p> : null}
+              <fieldset disabled={todosLoading || todosSaving} className="min-w-0 space-y-3">
               <div>
                 <label className="mb-1 block text-xs text-[#6a85bc]">建议标题</label>
                 <input
@@ -620,7 +668,7 @@ export default function DashboardPage() {
                   className="w-full rounded-xl border border-[#bfd0ee] px-3 py-2 text-sm outline-none focus:border-[#5e83cc]"
                 />
               </div>
-              <div className="grid grid-cols-2 gap-3">
+              <div className="grid grid-cols-1 gap-3 min-[400px]:grid-cols-2">
                 <div>
                   <label className="mb-1 block text-xs text-[#6a85bc]">紧急程度</label>
                   <select
@@ -668,12 +716,12 @@ export default function DashboardPage() {
                   type="submit"
                   className="rounded-full border border-[#8ba6da] bg-[#4f78c8] px-5 py-2 text-xs font-medium text-white"
                 >
-                  创建建议
+                  {todosSaving ? "保存中…" : "创建建议"}
                 </button>
               </div>
+              </fieldset>
             </form>
-          </div>
-        </div>
+        </Modal>
       ) : null}
     </div>
   );
