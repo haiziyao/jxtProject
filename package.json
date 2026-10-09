@@ -3,19 +3,13 @@
   "version": "0.1.0",
   "private": true,
   "scripts": {
-    "dev": "next dev",
-    "build": "prisma generate && next build",
+    "dev": "node scripts/prepare-editor.cjs && next dev",
+    "build": "node scripts/prepare-editor.cjs && prisma generate && next build",
     "start": "next start",
     "lint": "next lint",
     "test": "node --test tests/*.test.cjs"
   },
   "dependencies": {
-    "@bytemd/plugin-breaks": "^1.22.0",
-    "@bytemd/plugin-frontmatter": "^1.22.0",
-    "@bytemd/plugin-gfm": "^1.22.0",
-    "@bytemd/plugin-highlight": "^1.22.0",
-    "@bytemd/plugin-medium-zoom": "^1.22.0",
-    "@bytemd/react": "^1.22.0",
     "@prisma/client": "^5.22.0",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-label": "^2.1.8",
@@ -25,7 +19,6 @@
     "@tiptap/pm": "^3.22.3",
     "@tiptap/react": "^3.22.3",
     "@tiptap/starter-kit": "^3.22.3",
-    "bytemd": "^1.22.0",
     "class-variance-authority": "^0.7.1",
     "clsx": "^2.1.1",
     "highlight.js": "^11.11.1",
@@ -39,7 +32,8 @@
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
     "tailwind-merge": "^3.5.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "vditor": "4.0.0"
   },
   "devDependencies": {
     "@types/jsonwebtoken": "^9.0.10",

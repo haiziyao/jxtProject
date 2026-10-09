@@ -2,6 +2,8 @@
 
 项目介绍与进度、成员资料、实验记录、Markdown 正文、附件和待办管理。使用 Next.js 14、Prisma/MySQL 和 MinIO，登录后访问项目数据。
 
+实验正文使用 Vditor 编辑器，支持即时渲染、所见即所得和 Markdown 源码模式。阅读页提供文档目录、表格、公式、代码高亮和 `.md` 导出；手机使用全宽编辑区域。使用与维护说明见 [Markdown 文档界面](docs/markdown-editor.md)。
+
 ## 开发
 
 需要 Node.js 22、MySQL 和 MinIO。
